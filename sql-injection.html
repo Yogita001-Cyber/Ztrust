@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ZTrust - SQL Injection</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      /* Reusing input-validation.html theme tokens */
+      --sidebar-bg: #595959;
+      --tile-hover: #c69b6b;
+      --badge-ready: #c5f7c5;
+      --badge-ready-text: #1b531b;
+      --border: #dcdcdc;
+      --panel-bg: #f9f9f9;
+      --text: #333;
+    }
+    * { box-sizing: border-box; font-family: "Segoe UI", sans-serif; }
+    html, body { height: 100%; }
+    body { margin: 0; background: #f5f5f5; display: flex; justify-content: center; align-items: center; }
+
+    /* Shell mirrors input-validation.html: centered card with sidebar + main */
+    .app-shell {
+      width: 92vw; max-width: 1400px; height: 86vh; min-height: 640px;
+      background: #fff; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,.10);
+      display: grid; grid-template-columns: 300px 1fr;
+    }
+
+    /* Sidebar (same look as reference) */
+    .sidebar { background: var(--sidebar-bg); color: #fff; position: relative; display: grid; grid-template-rows: auto 1fr auto; }
+    .sidebar-header { padding: 22px 20px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 22px; font-weight: 700; text-align: center; letter-spacing: .5px; }
+    .sidebar-note { color: #f0e6e6; font-size: 13px; padding: 4px 6px 10px 6px; display: none; }
+    .sidebar-list { padding: 14px 14px 120px 14px; overflow-y: auto; }
+
+    .nav-tile { background: #777; border-radius: 10px; padding: 12px 14px; margin: 10px 0; cursor: pointer; transition: .2s; font-size: 14px; display: flex; justify-content: space-between; align-items: center; text-decoration: none; color: #fff; }
+    .nav-tile:hover, .nav-tile.active { background: var(--tile-hover); color: #fff; font-weight: 600; }
+
+    .me-dot { width: 8px; height: 8px; border-radius: 50%; background: #b58df0; display: inline-block; }
+    .me-name { font-weight: 700; font-size: 14px; }
+    .me-caret { margin-left: auto; opacity: .9; font-size: 12px; transition: .15s ease; }
+    .me-caret.open { transform: rotate(180deg); }
+    .me-row { font-size: 14px; margin: 0 0 10px 0; opacity: .95; }
+    
+    .dash-btn{
+      position: absolute; left: 80px; bottom: 50px;
+      background: #C7A06A; color:#fff; text-decoration:none;
+      padding: 10px 90px; border-radius: 8px; font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1); z-index: 1000;
+    }
+    .dash-btn:hover{ background: #ad8355; }
+
+    /* Actions row inside dropdown */
+    .me-actions{
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+      margin-top: 10px;
+    }
+    .me-actions a{
+      flex: 1 1 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      background: var(--tile-hover);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .me-actions a:hover { background: #ad8355; }
+
+    @keyframes fadeIn { from{opacity:0; transform: translateY(-4px);} to{opacity:1; transform:none;} }
+
+    /* Main column header */
+    .main {
+      display: grid;
+      grid-template-rows: auto 1fr; /* header | content */
+      height: 100%;
+      min-height: 0;
+      background: #fff;
+    }
+    .main-header {
+      flex: 0 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; padding: 14px 16px; background: #eee; border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .status { font-size: 12px; padding: 4px 8px; border-radius: 8px; background: var(--badge-ready); color: var(--badge-ready-text); }
+
+    /* Content area styled like reference panel background */
+    .content {
+      min-height: 0;
+      overflow-y: auto;
+      background: var(--panel-bg);
+      padding: 16px;
+    }
+
+    /* Cards and titles */
+    .section-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      color: #222;
+      font-weight: 600;
+    }
+
+    /* Form controls */
+    label { font-weight: 600; display: block; margin-bottom: 6px; font-size: 14px; color: #2a3a59; }
+    select, textarea, input[type="text"] {
+      width: 100%;
+      background: #fff;
+      border: 1px solid #b0bec5;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #223344;
+      outline: none;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    select:focus, textarea:focus, input[type="text"]:focus {
+      border-color: #9aa8b0;
+      box-shadow: 0 0 0 3px rgba(198,155,107,0.22);
+    }
+    textarea {
+      min-height: 140px;
+      resize: vertical;
+      border-radius: 12px;
+      font-family: 'Fira Mono', 'Consolas', monospace;
+      line-height: 1.45;
+    }
+
+    /* Actions row */
+    .actions-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .btn {
+      background: var(--tile-hover);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s ease, opacity .15s ease, transform .05s ease;
+    }
+    .btn:hover { background: #a88450; }
+    .btn:active { transform: translateY(1px); }
+
+    .btn.warn { background: #C7A06A; }
+    .btn.warn:hover { background: #a88450; }
+    .btn.alt { background: #C7A06A; color: #fff; }
+    .btn.alt:hover { background: #a88450; }
+
+    /* Results section: two columns like reference */
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 16px;
+    }
+    .panel {
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 15px;
+      line-height: 1.45;
+      border: 1px solid transparent;
+      background: #fff;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .panel.insecure { background: #FFECEC; color: #C0392B; border-color: #E74C3C; }
+    .panel.secure { background: #E6F8EC; color: #1E8449; border-color: #27AE60; }
+
+    pre {
+      margin: 10px 0 0 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: rgba(0,0,0,0.03);
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .explain {
+      background: #F0F4F8;
+      border: 1px solid #333333;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 16px;
+      color: #2F4F4F;
+      line-height: 1.5;
+      font-size: 15px;
+    }
+
+    @media (max-width: 1080px) {
+      .app-shell { grid-template-columns: 260px 1fr; }
+    }
+    @media (max-width: 860px) {
+      .app-shell { width: 96vw; height: 92vh; grid-template-columns: 1fr; }
+      .result-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">MODULES</div>
+      <div class="sidebar-note" id="sidebarNote">Failed to load</div>
+
+      <div class="sidebar-list" id="navList">
+        <a class="nav-tile" href="input-validation.html">Input Validation</a>
+        <a class="nav-tile" href="authentication.html">Authentication</a>
+        <a class="nav-tile active" href="sql-injection.html">SQL Injection</a>
+        <a class="nav-tile" href="xss-injection.html">XSS Injection</a>
+        <a class="nav-tile" href="access-control.html">Access Control</a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="main-header">
+        <span>Secure Coding Toolkit — SQL Injection</span>
+        <span class="status" id="statusPill">Ready</span>
+      </div>
+
+      <div class="content">
+        <!-- Language and test input -->
+        <div class="section-card">
+          <h3 class="section-title">Run SQL Injection Checks</h3>
+
+          <div style="display:grid; gap:12px; grid-template-columns: 220px 1fr;">
+            <div>
+              <label for="language-select">Language</label>
+              <select id="language-select">
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+                <option value="java">Java</option>
+                <option value="php">PHP</option>
+                <option value="csharp">C#</option>
+              </select>
+            </div>
+            <div>
+              <label for="code-title">Snippet Title (optional)</label>
+              <input id="code-title" type="text" placeholder="e.g., Login query snippet" />
+            </div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <label for="test-code">Test Code</label>
+            <textarea id="test-code" placeholder="// Paste your SQL/database interaction code here..."></textarea>
+            <div class="actions-row">
+              <button id="test-code-btn" class="btn">Test my code</button>
+              <button id="clear-btn" class="btn warn">Clear</button>
+              <button id="load-sample-btn" class="btn alt">Load Sample</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="section-card">
+          <h3 class="section-title">Results</h3>
+          <div class="result-grid">
+            <div class="panel insecure" id="result-insecure">
+              ❌ <strong>Insecure:</strong> (results will appear here)
+            </div>
+            <div class="panel secure" id="result-secure">
+              ✅ <strong>Secure:</strong> (suggestions will appear here)
+            </div>
+          </div>
+          <div class="explain" id="explanation-section">
+            <strong>Explanation:</strong>
+            <p>Explanation will appear here in plain, student-friendly English.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ------------------------------
+    // SQL Injection module logic (ported & themed)
+    // ------------------------------
+    function initSQLInjectionModule() {
+      const languageSelect = document.getElementById("language-select");
+      const testCodeArea = document.getElementById("test-code");
+      const testBtn = document.getElementById("test-code-btn");
+      const clearBtn = document.getElementById("clear-btn");
+      const sampleBtn = document.getElementById("load-sample-btn");
+      const insecurePanel = document.getElementById("result-insecure");
+      const securePanel = document.getElementById("result-secure");
+      const explanationP = document.querySelector("#explanation-section p");
+      const statusPill = document.getElementById('statusPill');
+
+      // Samples per language
+      const samples = {
+        python: {
+          insecure:
+`# Insecure: SQL built via string concatenation
+username = input("Username: ")
+password = input("Password: ")
+query = "SELECT * FROM users WHERE username = '" + username + "' AND password = '" + password + "'"
+cursor.execute(query)`,
+          secure:
+`# Secure: parameterized query
+query = "SELECT * FROM users WHERE username = %s AND password = %s"
+cursor.execute(query, (username, password))`,
+          explanation: "Directly inserting user input into SQL lets attackers change the query. Parameterized queries keep SQL and data separate."
+        },
+        javascript: {
+          insecure:
+`// Insecure: string-built SQL
+const user = req.body.username;
+const pass = req.body.password;
+const q = "SELECT * FROM users WHERE username = '" + user + "' AND password = '" + pass + "'";
+connection.query(q, (err, rows) => {});`,
+          secure:
+`// Secure: placeholders / parameters
+const q = "SELECT * FROM users WHERE username = ? AND password = ?";
+connection.query(q, [user, pass], (err, rows) => {});`,
+          explanation: "Use placeholders (?) so the database treats inputs as data, not SQL."
+        },
+        java: {
+          insecure:
+`// Insecure: concatenation
+String q = "SELECT * FROM users WHERE username='" + user + "' AND password='" + pass + "'";
+Statement st = conn.createStatement();
+ResultSet rs = st.executeQuery(q);`,
+          secure:
+`// Secure: PreparedStatement
+String q = "SELECT * FROM users WHERE username=? AND password=?";
+PreparedStatement ps = conn.prepareStatement(q);
+ps.setString(1, user);
+ps.setString(2, pass);
+ResultSet rs = ps.executeQuery();`,
+          explanation: "PreparedStatement with ? placeholders blocks injection by binding values safely."
+        },
+        php: {
+          insecure:
+`// Insecure: concatenated SQL
+$username = $_POST['username'];
+$password = $_POST['password'];
+$sql = "SELECT * FROM users WHERE username='$username' AND password='$password'";
+mysql_query($sql);`,
+          secure:
+`// Secure: PDO prepared statement
+$sql = "SELECT * FROM users WHERE username = :u AND password = :p";
+$stmt = $pdo->prepare($sql);
+$stmt->execute([':u' => $username, ':p' => $password]);`,
+          explanation: "PDO prepared statements bind parameters so input cannot break the SQL."
+        },
+        csharp: {
+          insecure:
+`// Insecure: string concat
+string q = "SELECT * FROM users WHERE username='" + username + "' AND password='" + password + "'";
+var cmd = new SqlCommand(q, conn);`,
+          secure:
+`// Secure: parameters
+string q = "SELECT * FROM users WHERE username=@u AND password=@p";
+var cmd = new SqlCommand(q, conn);
+cmd.Parameters.AddWithValue("@u", username);
+cmd.Parameters.AddWithValue("@p", password);`,
+          explanation: "Always use parameters (e.g., @u) so the DB engine treats inputs as data."
+        }
+      };
+
+      // Pattern indicators
+      const indicators = {
+        python: [/cursor\.execute\([^,]+["'`]\s*\+/i, /["'`]\s*\+\s*username/i, /["'`]\s*\+\s*password/i],
+        javascript: [/connection\.query\([^,]+["'`]\s*\+/i, /\+\s*req\.body/i],
+        java: [/Statement\b/, /"[^"]*"\s*\+\s*user/i, /"[^"]*"\s*\+\s*pass/i],
+        php: [/mysql_query\(/i, /\$_(POST|GET)/i, /"[^"]*'\s*\.\s*\$[a-z_]+/i],
+        csharp: [/SqlCommand\s*\(\s*".*\+"\s*username/i]
+      };
+
+      function clearAll() {
+        testCodeArea.value = "";
+        insecurePanel.innerHTML = '❌ <strong>Insecure:</strong> (results will appear here)';
+        securePanel.innerHTML = '✅ <strong>Secure:</strong> (suggestions will appear here)';
+        explanationP.textContent = "Explanation will appear here in plain, student-friendly English.";
+        statusPill.textContent = "Ready";
+      }
+
+      function loadSample(lang) {
+        const s = samples[lang];
+        insecurePanel.innerHTML = `❌ <strong>Insecure:</strong><pre>${escapeHtml(s ? s.insecure : "N/A")}</pre>`;
+        securePanel.innerHTML = `✅ <strong>Secure:</strong><pre>${escapeHtml(s ? s.secure : "N/A")}</pre>`;
+        explanationP.textContent = s ? s.explanation : "N/A";
+        testCodeArea.value = s ? s.insecure : "";
+        statusPill.textContent = "Sample loaded";
+      }
+
+      function testCode(code, lang) {
+        if (!code.trim()) {
+          clearAll();
+          return;
+        }
+        statusPill.textContent = "Analyzing…";
+
+        const hasConcatRisk = (indicators[lang] || []).some(re => re.test(code));
+        const showsSecure = /prepare|preparedstatement|parameter|bind|addwithvalue|\?|\@[a-z_]+|:[a-z_]+/i.test(code);
+
+        const s = samples[lang];
+        if (hasConcatRisk) {
+          insecurePanel.innerHTML = `❌ <strong>Insecure:</strong><pre>${escapeHtml(s ? s.insecure : "Detected risky concatenation of SQL and user input.")}</pre>`;
+          securePanel.innerHTML = `✅ <strong>Secure:</strong><pre>${escapeHtml(s ? s.secure : "Use parameterized queries with placeholders.")}</pre>`;
+          explanationP.textContent = s ? s.explanation : "Insert user data via parameters, never by building query strings.";
+          statusPill.textContent = "Review issues";
+          return;
+        }
+
+        if (showsSecure) {
+          insecurePanel.textContent = "No insecure concatenation detected.";
+          securePanel.innerHTML = `✅ <strong>Secure:</strong><pre>${escapeHtml(s ? s.secure : "Good: parameterized pattern detected.")}</pre>`;
+          explanationP.textContent = "Good job. Parameterized queries keep data and SQL separate, preventing SQL injection.";
+          statusPill.textContent = "Looks good";
+          return;
+        }
+
+        // Fallback: provide secure guidance anyway
+        insecurePanel.textContent = "(No obvious insecure pattern found)";
+        securePanel.innerHTML = `✅ <strong>Secure:</strong><pre>${escapeHtml(s ? s.secure : "Consider using parameterized queries.")}</pre>`;
+        explanationP.textContent = "If the code builds SQL strings from inputs, switch to parameters to prevent injection.";
+        statusPill.textContent = "Review suggestions";
+      }
+
+      function escapeHtml(s){
+        return String(s)
+          .replaceAll("&","&amp;")
+          .replaceAll("<","&lt;")
+          .replaceAll(">","&gt;");
+      }
+
+      // Wire events
+      testBtn.onclick = () => testCode(testCodeArea.value, languageSelect.value);
+      clearBtn.onclick = () => clearAll();
+      sampleBtn.onclick = () => loadSample(languageSelect.value);
+      languageSelect.onchange = () => clearAll();
+
+      // Init
+      clearAll();
+    }
+
+    window.addEventListener('DOMContentLoaded', initSQLInjectionModule);
+  </script>
+<a href="/dashboard" class="dash-btn">← Dashboard</a>
+</body>
+</html>

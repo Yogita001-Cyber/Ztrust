@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ZTrust - Access Control</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      /* Reusing input-validation.html theme tokens */
+      --sidebar-bg: #595959;
+      --tile-hover: #c69b6b;
+      --badge-ready: #c5f7c5;
+      --badge-ready-text: #1b531b;
+      --border: #dcdcdc;
+      --panel-bg: #f9f9f9;
+      --text: #333;
+    }
+    * { box-sizing: border-box; font-family: "Segoe UI", sans-serif; }
+    html, body { height: 100%; }
+    body { margin: 0; background: #f5f5f5; display: flex; justify-content: center; align-items: center; }
+
+    /* Shell mirrors input-validation.html: centered card with sidebar + main */
+    .app-shell {
+      width: 92vw; max-width: 1400px; height: 86vh; min-height: 640px;
+      background: #fff; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,.10);
+      display: grid; grid-template-columns: 300px 1fr;
+    }
+
+    /* Sidebar (same look as reference) */
+    .sidebar { background: var(--sidebar-bg); color: #fff; position: relative; display: grid; grid-template-rows: auto 1fr auto; }
+    .sidebar-header { padding: 22px 20px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 22px; font-weight: 700; text-align: center; letter-spacing: .5px; }
+    .sidebar-note { color: #f0e6e6; font-size: 13px; padding: 4px 6px 10px 6px; display: none; }
+    .sidebar-list { padding: 14px 14px 120px 14px; overflow-y: auto; }
+
+    .nav-tile { background: #777; border-radius: 10px; padding: 12px 14px; margin: 10px 0; cursor: pointer; transition: .2s; font-size: 14px; display: flex; justify-content: space-between; align-items: center; text-decoration: none; color: #fff; }
+    .nav-tile:hover, .nav-tile.active { background: var(--tile-hover); color: #fff; font-weight: 600; }
+    .me-dot { width: 8px; height: 8px; border-radius: 50%; background: #b58df0; display: inline-block; }
+    .me-name { font-weight: 700; font-size: 14px; }
+    .me-caret { margin-left: auto; opacity: .9; font-size: 12px; transition: .15s ease; }
+    .me-caret.open { transform: rotate(180deg); }
+
+    .me-row { font-size: 14px; margin: 0 0 10px 0; opacity: .95; }
+
+    .dash-btn{
+      position: absolute; left: 80px; bottom: 50px;
+      background: #C7A06A; color:#fff; text-decoration:none;
+      padding: 10px 90px; border-radius: 8px; font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1); z-index: 1000;
+    }
+    .dash-btn:hover{ background: #ad8355; }
+
+    /* Actions row inside dropdown */
+    .me-actions{
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+      margin-top: 10px;
+    }
+    .me-actions a{
+      flex: 1 1 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      background: var(--tile-hover);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .me-actions a:hover { background: #ad8355; }
+
+    @keyframes fadeIn { from{opacity:0; transform: translateY(-4px);} to{opacity:1; transform:none;} }
+
+    /* Main column header */
+    .main {
+      display: grid;
+      grid-template-rows: auto 1fr; /* header | content */
+      height: 100%;
+      min-height: 0;
+      background: #fff;
+    }
+    .main-header {
+      flex: 0 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; padding: 14px 16px; background: #eee; border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .status { font-size: 12px; padding: 4px 8px; border-radius: 8px; background: var(--badge-ready); color: var(--badge-ready-text); }
+
+    /* Content area styled like reference panel background */
+    .content {
+      min-height: 0;
+      overflow-y: auto;
+      background: var(--panel-bg);
+      padding: 16px;
+    }
+
+    /* Cards and titles */
+    .section-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      color: #222;
+      font-weight: 600;
+    }
+
+    /* Form controls */
+    label { font-weight: 600; display: block; margin-bottom: 6px; font-size: 14px; color: #2a3a59; }
+    select, textarea, input[type="text"] {
+      width: 100%;
+      background: #fff;
+      border: 1px solid #b0bec5;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #223344;
+      outline: none;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    select:focus, textarea:focus, input[type="text"]:focus {
+      border-color: #9aa8b0;
+      box-shadow: 0 0 0 3px rgba(198,155,107,0.22);
+    }
+    textarea {
+      min-height: 140px;
+      resize: vertical;
+      border-radius: 12px;
+      font-family: 'Fira Mono', 'Consolas', monospace;
+      line-height: 1.45;
+    }
+
+    /* Actions row */
+    .actions-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .btn {
+      background: var(--tile-hover);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s ease, opacity .15s ease, transform .05s ease;
+    }
+    .btn:hover { background: #a88450; }
+    .btn:active { transform: translateY(1px); }
+
+    .btn.warn { background: #C7A06A; }
+    .btn.warn:hover { background: #a88450; }
+    .btn.alt { background: #C7A06A; color: #fff; }
+    .btn.alt:hover { background: #a88450; }
+
+    /* Results section: two columns like reference */
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 16px;
+    }
+    .panel {
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 15px;
+      line-height: 1.45;
+      border: 1px solid transparent;
+      background: #fff;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .panel.insecure { background: #FFECEC; color: #C0392B; border-color: #E74C3C; }
+    .panel.secure { background: #E6F8EC; color: #1E8449; border-color: #27AE60; }
+
+    pre {
+      margin: 10px 0 0 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: rgba(0,0,0,0.03);
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .explain {
+      background: #F0F4F8;
+      border: 1px solid #333333;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 16px;
+      color: #2F4F4F;
+      line-height: 1.5;
+      font-size: 15px;
+    }
+
+    @media (max-width: 1080px) {
+      .app-shell { grid-template-columns: 260px 1fr; }
+    }
+    @media (max-width: 860px) {
+      .app-shell { width: 96vw; height: 92vh; grid-template-columns: 1fr; }
+      .result-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">MODULES</div>
+      <div class="sidebar-note" id="sidebarNote">Failed to load</div>
+
+      <div class="sidebar-list" id="navList">
+        <a class="nav-tile" href="input-validation.html">Input Validation</a>
+        <a class="nav-tile" href="authentication.html">Authentication</a>
+        <a class="nav-tile" href="sql-injection.html">SQL Injection</a>
+        <a class="nav-tile" href="xss-injection.html">XSS Injection</a>
+        <a class="nav-tile active" href="access-control.html">Access Control</a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="main-header">
+        <span>Secure Coding Toolkit — Access Control</span>
+        <span class="status" id="statusPill">Ready</span>
+      </div>
+
+      <div class="content">
+        <!-- Language and test input -->
+        <div class="section-card">
+          <h3 class="section-title">Run Access Control Checks</h3>
+
+          <div style="display:grid; gap:12px; grid-template-columns: 220px 1fr;">
+            <div>
+              <label for="language-select">Language/Framework</label>
+              <select id="language-select">
+                <option value="Java">Java</option>
+                <option value="Python">Python</option>
+                <option value="PHP">PHP</option>
+                <option value="NodeJS">Node.js</option>
+                <option value="CSharp">C#</option>
+              </select>
+            </div>
+            <div>
+              <label for="code-title">Snippet Title (optional)</label>
+              <input id="code-title" type="text" placeholder="e.g., Admin endpoint snippet" />
+            </div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <label for="access-code">Paste your code here</label>
+            <textarea id="access-code" placeholder="Paste code for access control checks..."></textarea>
+            <div class="actions-row">
+              <button id="test-code-btn" class="btn">Test my code</button>
+              <button id="clear-btn" class="btn warn">Clear</button>
+              <button id="load-sample-btn" class="btn alt">Load Sample</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="section-card">
+          <h3 class="section-title">Results</h3>
+          <div class="result-grid">
+            <div class="panel insecure" id="result-insecure">
+              ❌ <strong>Insecure:</strong>
+              <pre>(Insecure code will appear here)</pre>
+            </div>
+            <div class="panel secure" id="result-secure">
+              ✅ <strong>Secure:</strong>
+              <pre>(Secure code will appear here)</pre>
+            </div>
+          </div>
+          <div class="explain" id="explanation-section">
+            <strong>Explanation:</strong>
+            <p>The panel explains common access control issues and how to mitigate them.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ------------------------------
+    // Access Control module logic (ported & themed)
+    // ------------------------------
+    function initAccessControlModule() {
+      const languageSelect = document.getElementById("language-select");
+      const codeArea = document.getElementById("access-code");
+      const testBtn = document.getElementById("test-code-btn");
+      const clearBtn = document.getElementById("clear-btn");
+      const sampleBtn = document.getElementById("load-sample-btn");
+      const insecurePanel = document.getElementById("result-insecure");
+      const securePanel = document.getElementById("result-secure");
+      const explanationP = document.querySelector("#explanation-section p");
+      const statusPill = document.getElementById('statusPill');
+
+      // Samples
+      const samples = {
+        Java: {
+          insecure: `// Missing access control check on admin endpoint
+@GetMapping("/admin/data")
+public String getAdminData() {
+    return dataService.getSensitiveData();
+}`,
+          secure: `// Proper role check
+@GetMapping("/admin/data")
+@PreAuthorize("hasRole('ADMIN')")
+public String getAdminData() {
+    return dataService.getSensitiveData();
+}`,
+          explanation: `Common issues:
+No role or permission checks allow unauthorized access.
+Use @PreAuthorize or similar to check roles before sensitive operations.
+Enforce least privilege: only authorized roles should access sensitive functions.`
+        },
+        Python: {
+          insecure: `# Direct access without authorization checks
+def view_sensitive_data(user_id):
+    data = get_database_data(user_id)
+    return data`,
+          secure: `# Check user permissions before access
+def view_sensitive_data(user, user_id):
+    if not user.has_permission('view_sensitive_data'):
+        raise PermissionError('Access denied')
+    data = get_database_data(user_id)
+    return data`,
+          explanation: `Avoid allowing access to sensitive data without verifying user permissions.
+Always check if the user is authorized for the requested action to prevent privilege escalation.`
+        },
+        PHP: {
+          insecure: `// No check for user role before displaying admin page
+if ($_SESSION['role'] == 'user') {
+    echo "User content";
+} else {
+    echo "Admin content";
+}`,
+          secure: `// Check explicitly for admin role
+if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
+    echo "Admin content";
+} else {
+    echo "User content or redirect to access denied";
+}`,
+          explanation: `Be wary of loose or missing role checks that allow users to see or do things they shouldn't.
+Check roles precisely and deny access if unauthorized.`
+        },
+        NodeJS: {
+          insecure: `// API endpoint lacks role verification
+app.get('/admin/data', (req, res) => {
+    res.send(getSensitiveData());
+});`,
+          secure: `// Middleware to verify admin role
+function verifyAdmin(req, res, next) {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).send('Access Denied');
+    }
+    next();
+}
+app.get('/admin/data', verifyAdmin, (req, res) => {
+    res.send(getSensitiveData());
+});`,
+          explanation: `Always verify user roles or permissions on sensitive routes.
+Use middleware or guard functions to enforce access control.`
+        },
+        CSharp: {
+          insecure: `// No authorization check before returning data
+public IActionResult GetAdminData() {
+    var data = _service.GetSensitiveData();
+    return Ok(data);
+}`,
+          secure: `// Using Authorize attribute to enforce role
+[Authorize(Roles = "Admin")]
+public IActionResult GetAdminData() {
+    var data = _service.GetSensitiveData();
+    return Ok(data);
+}`,
+          explanation: `Use framework features like [Authorize] to restrict access.
+Avoid exposing sensitive functions without proper authorization.`
+        }
+      };
+
+      // Helpers
+      function escapeHtml(s){
+        return String(s || '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+      }
+      function ensurePreStyles(preEl){
+        if (!preEl) return;
+        preEl.style.whiteSpace = 'pre-wrap';
+        preEl.style.wordBreak = 'break-word';
+      }
+
+      // Rules
+      const Rules = [
+        // Java: missing @PreAuthorize near @GetMapping
+        {
+          id: "java-missing-access-control",
+          language: "java",
+          regex: /@GetMapping\s*\([^\)]*\)[\s\S]*?public\s+\w+\s+\w+\s*\([^\)]*\)\s*\{[\s\S]*?return[\s\S]*?\}/g,
+          detect: function (code) {
+            const findings = [];
+            const blocks = code.match(this.regex) || [];
+            blocks.forEach(block => {
+              const blockStart = code.indexOf(block);
+              const preBlock = code.slice(Math.max(0, blockStart - 200), blockStart);
+              if (!/@PreAuthorize|@Secured/.test(preBlock)) {
+                findings.push({
+                  snippet: block,
+                  fix: block.replace("@GetMapping", "@PreAuthorize(\"hasRole('ADMIN')\")\n@GetMapping"),
+                  why: [
+                    "This @GetMapping endpoint does not enforce any role or permission check.",
+                    "Protect sensitive endpoints with @PreAuthorize or equivalent."
+                  ]
+                });
+              }
+            });
+            return findings;
+          }
+        },
+
+        // Python: Flask route without decorators like @login_required or @permission_required
+        {
+          id: "python-missing-access-control",
+          language: "python",
+          regex: /@app\.route\s*\([^\)]*\)[\s\S]*?def\s+\w+\s*\([^\)]*\):[\s\S]*?return/g,
+          detect: function (code) {
+            const findings = [];
+            const routeBlocks = code.match(this.regex) || [];
+            routeBlocks.forEach(block => {
+              const idx = code.indexOf(block);
+              const before = code.slice(Math.max(0, idx - 200), idx);
+              if (!/@login_required|@permission_required/.test(before)) {
+                findings.push({
+                  snippet: block,
+                  fix: block.replace('@app.route', '@login_required\n@app.route'),
+                  why: [
+                    "This Flask route lacks login or permission checks.",
+                    "Add @login_required or a custom permission decorator to restrict access."
+                  ]
+                });
+              }
+            });
+            return findings;
+          }
+        },
+
+        // PHP: brittle session checks
+        {
+          id: "php-missing-access-control",
+          language: "php",
+          regex: /\$_SESSION(\[['"][^'"]+['"]\])[\s\S]*?\{/g,
+          detect: function(code) {
+            const matches = code.match(this.regex) || [];
+            const findings = [];
+            matches.forEach(block => {
+              if (!/isset\(\$_SESSION\[['"][^'"]+['"]\]\)/.test(block) || /==\s*['"]user['"]/.test(block)) {
+                const fix = `session_start();
+if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
+${block}
+} else {
+  http_response_code(403);
+  die("Unauthorized");
+}`;
+                findings.push({
+                  snippet: block,
+                  fix,
+                  why: [
+                    "Session role is checked insecurely or not at all.",
+                    "Use isset and explicit role checks, and return 403 on unauthorized access."
+                  ]
+                });
+              }
+            });
+            return findings;
+          }
+        },
+
+        // C#: endpoints without [Authorize]
+        {
+          id: "csharp-missing-authorize",
+          language: "csharp",
+          regex: /\[(HttpGet|HttpPost|HttpPut|HttpDelete)(\([^\)]*\))?\]\s*public\s+\w+\s+\w+\s*\([^\)]*\)\s*\{[\s\S]*?\}/g,
+          detect: function(code) {
+            const findings = [];
+            const blocks = code.match(this.regex) || [];
+            blocks.forEach(block => {
+              const idx = code.indexOf(block);
+              const pre = code.slice(Math.max(0, idx - 200), idx);
+              if (!/\[Authorize(\([^\)]*\))?\]/.test(pre)) {
+                const fix = `[Authorize]\n${block}`;
+                findings.push({
+                  snippet: block,
+                  fix,
+                  why: [
+                    "This API method lacks the [Authorize] attribute.",
+                    "Add [Authorize] (with roles/policies) to enforce access control."
+                  ]
+                });
+              }
+            });
+            return findings;
+          }
+        },
+
+        // Node.js: Express routes missing auth middleware
+        {
+          id: "node-missing-auth-middleware",
+          language: "nodejs",
+          regex: /app\.(get|post|put|delete)\s*\(\s*['"`][^'"`]+['"`]\s*,\s*(?:\w+\s*,\s*)?\(?\s*(req|_)\s*,/gi,
+          detect: function(code) {
+            const findings = [];
+            const routes = code.match(this.regex) || [];
+            routes.forEach(route => {
+              const idx = code.indexOf(route);
+              const callEnd = code.indexOf(')', idx);
+              const fullCall = code.slice(idx, callEnd + 1);
+              if (!/(verifyAdmin|authenticateJWT|isAdmin|authorize)/i.test(fullCall)) {
+                const fixed = fullCall.replace(/\((\s*['"`][^'"`]+['"`]\s*),/, '($1, verifyAdmin, ');
+                findings.push({
+                  snippet: fullCall,
+                  fix: fixed,
+                  why: [
+                    "This Express route is missing authentication/authorization middleware.",
+                    "Add middleware like verifyAdmin or authenticateJWT to enforce access control."
+                  ]
+                });
+              }
+            });
+            return findings;
+          }
+        }
+      ];
+
+      // General heuristic if rules find nothing
+      function generalHeuristic(code) {
+        const lower = code.toLowerCase();
+
+        if (/public\s+iactionresult/.test(lower) && /\[http(get|post|put|delete)\]/.test(lower)) {
+          const secure = code.replace(/\[(HttpGet|HttpPost|HttpPut|HttpDelete)(\([^\)]*\))?\]/, '[Authorize]\n$&');
+          return {
+            insecure: true,
+            secure,
+            message: "Add [Authorize] above ASP.NET endpoints to ensure only authenticated users can access them."
+          };
+        }
+        if (/getmapping/.test(lower)) {
+          const secure = code.replace(/@GetMapping/, '@PreAuthorize("hasRole(\'ADMIN\')")\n@GetMapping');
+          return {
+            insecure: true,
+            secure,
+            message: "Add @PreAuthorize to Spring endpoints to restrict access by role."
+          };
+        }
+        if (/@app\.route/.test(lower)) {
+          const secure = code.replace(/@app\.route/, '@login_required\n@app.route');
+          return {
+            insecure: true,
+            secure,
+            message: "Add @login_required to Flask routes so only logged-in users can access them."
+          };
+        }
+        if (/app\.(get|post|put|delete)/.test(lower)) {
+          const secure = code.replace(/app\.(get|post|put|delete)\(([^,]+),/, 'app.$1($2, verifyAdmin, ');
+          return {
+            insecure: true,
+            secure,
+            message: "Add authentication/authorization middleware (e.g., verifyAdmin) for sensitive Express routes."
+          };
+        }
+        return { insecure: false };
+      }
+
+      // Scan and render
+      function scan(code) {
+        const normalized = String(code || '');
+        const lang = (languageSelect.value || '').toLowerCase();
+        const findings = [];
+        Rules.forEach(rule => {
+          try {
+            if (typeof rule.detect === "function") {
+              // Apply language-select filter when rule specifies a language
+              if (rule.language && rule.language !== lang) return;
+              const res = rule.detect(normalized);
+              if (Array.isArray(res) && res.length) {
+                res.forEach(item => findings.push({
+                  snippet: item.snippet || "[snippet unavailable]",
+                  fix: item.fix || "[fix unavailable]",
+                  why: item.why || ["No explanation provided"],
+                  ruleId: rule.id || "unknown"
+                }));
+              }
+            }
+          } catch(e) {
+            // swallow rule errors
+          }
+        });
+        return findings;
+      }
+
+      function render(findings, originalCode) {
+        const insecurePre = insecurePanel.querySelector("pre");
+        const securePre = securePanel.querySelector("pre");
+
+        if (!findings.length) {
+          const h = generalHeuristic(originalCode);
+          if (h.insecure) {
+            insecurePre.textContent = originalCode;
+            securePre.textContent = h.secure;
+            explanationP.innerHTML = escapeHtml(h.message);
+            statusPill.textContent = "Review issues";
+          } else {
+            insecurePre.textContent = "(No insecure patterns found)";
+            securePre.textContent = "(No fixes applicable)";
+            explanationP.textContent = "No access control issues were detected.";
+            statusPill.textContent = "Looks good";
+          }
+          ensurePreStyles(insecurePre);
+          ensurePreStyles(securePre);
+          return;
+        }
+
+        const insecureText = findings.map(f => f.snippet).join('\n\n-----\n\n');
+        const secureText = findings.map(f => f.fix).join('\n\n-----\n\n');
+        const explainHtml = findings.map((f, i) =>
+          `<div style="margin-bottom:10px">
+             <strong>Finding ${i + 1}</strong>
+             <ul>${f.why.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul>
+           </div>`
+        ).join('');
+
+        insecurePre.textContent = insecureText;
+        securePre.textContent = secureText;
+        explanationP.innerHTML = explainHtml || "No access-control issues recognized.";
+        statusPill.textContent = "Review issues";
+
+        ensurePreStyles(insecurePre);
+        ensurePreStyles(securePre);
+      }
+
+      // UI actions
+      function clearAll() {
+        codeArea.value = "";
+        insecurePanel.querySelector("pre").textContent = "(Insecure code will appear here)";
+        securePanel.querySelector("pre").textContent = "(Secure code will appear here)";
+        explanationP.textContent = "The panel explains common access control issues and how to mitigate them.";
+        statusPill.textContent = "Ready";
+      }
+
+      function showSample(lang) {
+        const s = samples[lang];
+        if (!s) return;
+        codeArea.value = s.insecure + "\n\n" + s.secure;
+        insecurePanel.querySelector("pre").textContent = s.insecure;
+        securePanel.querySelector("pre").textContent = s.secure;
+        explanationP.textContent = s.explanation;
+        statusPill.textContent = "Sample loaded";
+      }
+
+      function runTest() {
+        const code = codeArea.value.trim();
+        if (!code) {
+          clearAll();
+          return;
+        }
+        statusPill.textContent = "Analyzing…";
+        const findings = scan(code);
+        render(findings, code);
+      }
+
+      // Wire buttons
+      sampleBtn.onclick = () => showSample(languageSelect.value);
+      clearBtn.onclick = clearAll;
+      testBtn.onclick = runTest;
+      languageSelect.onchange = () => clearAll();
+
+      // Init
+      clearAll();
+    }
+
+    window.addEventListener('DOMContentLoaded', initAccessControlModule);
+  </script>
+<a href="/dashboard" class="dash-btn">← Dashboard</a>
+</body>
+</html>

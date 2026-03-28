@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Welcome to SCPT !!</title>
+  <style>
+    body {
+      background: #f6fcfe;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      text-align: center;
+      color: #C7A06A;
+      font-size: 2.2em;
+      margin-top: 30px;
+      margin-bottom: 25px;
+    }
+    .dashboard-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 24px;
+      margin: 0 auto;
+      max-width: 1200px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 3px 12px rgba(45,94,158,0.1);
+      width: 280px;
+      padding: 20px 16px;
+      text-align: center;
+      margin-bottom: 16px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 5px 16px rgba(45,94,158,0.15);
+    }
+    .card img {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto 14px auto;
+    }
+    .card-title {
+      font-size: 1.1em;
+      color: #C7A06A;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .card-desc {
+      font-size: 0.9em;
+      color: #43465e;
+      margin-bottom: 14px;
+      line-height: 1.3em;
+    }
+    .card-btn {
+      background: #C7A06A;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 18px;
+      font-size: 0.9em;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+      box-shadow: 0 2px 8px rgba(45,94,158,0.08);
+    }
+    .card-btn:hover {
+      background: #c69b6b;
+    }
+    @media (max-width:1100px) {
+      .dashboard-container { gap: 18px; }
+      .card { width: 45%; }
+    }
+    @media (max-width:700px) {
+      .dashboard-container { flex-direction: column; align-items: center; }
+      h1 { font-size: 1.6em; }
+      .card { width: 90vw; }
+    }
+  </style>
+</head>
+<body>
+  
+  <h1>Welcome to SCPT !!</h1>
+  <div class="dashboard-container">
+    
+    <div class="card">
+      <img src="https://cdn-icons-png.flaticon.com/512/15441/15441459.png" alt="Input Validation Icon">
+      <div class="card-title">Input Validation</div>
+      <div class="card-desc">Learn how to validate and sanitize user input to prevent attacks.</div>
+      <button class="card-btn" onclick="window.location.href='/static/input-validation.html'">Check Input Validation</button>
+    </div>
+
+    <div class="card">
+      <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTQ1jn4FVLMbdpHzasMHvdYeKX8iClnPIygUQ&s" alt="Authentication Icon">
+      <div class="card-title">Authentication</div>
+      <div class="card-desc">Understand secure authentication patterns and pitfalls to avoid.</div>
+      <button class="card-btn" onclick="window.location.href='/static/authentication.html'">Check Authentication</button>
+    </div>
+
+    <div class="card">
+      <img src="https://framerusercontent.com/images/07V56aHoKgeeqziEIWD85MAgk0.webp" alt="SQL Injection Icon">
+      <div class="card-title">SQL Injection</div>
+      <div class="card-desc">See how SQL injection works and how to defend against it.</div>
+      <button class="card-btn" onclick="window.location.href='/static/sql-injection.html'">Defend SQL Injection</button>
+    </div>
+
+    <div class="card">
+      <img src="https://cdn.iconscout.com/icon/premium/png-256-thumb/xss-attack-4845127-4041830.png?f=webp" alt="XSS Injection Icon">
+      <div class="card-title">XSS Injection</div>
+      <div class="card-desc">Learn about Cross-Site Scripting and best practices to protect your app.</div>
+      <button class="card-btn" onclick="window.location.href='/static/xss-injection.html'">Defend XSS Attack</button>
+    </div>
+
+    <div class="card">
+      <img src="https://cdn-icons-png.flaticon.com/512/4924/4924682.png" alt="Access Control Icon">
+      <div class="card-title">Access Control</div>
+      <div class="card-desc">Review robust access control and how to avoid privilege escalation.</div>
+      <button class="card-btn" onclick="window.location.href='/static/access-control.html'">Defend Access Control</button>
+    </div>
+
+  </div>
+</body>
+</html>

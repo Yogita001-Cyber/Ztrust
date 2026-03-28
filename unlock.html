@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Unlock</title>
+  <style>
+    *{box-sizing:border-box;font-family:"Segoe UI",sans-serif}
+    body{margin:0;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh}
+    .card{width:min(900px,94vw);background:#fff;border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.12);padding:22px}
+    h1{margin:0 0 6px 0;font-size:22px;color:#333}
+    p.hint{margin:0 0 16px 0;color:#666;font-size:14px}
+    .grid{display:grid;grid-template-columns:1fr 260px auto;gap:10px}
+    textarea{min-height:140px;width:100%;resize:vertical;padding:10px;border:1px solid #ccc;border-radius:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+    input[type=password]{padding:12px;border:1px solid #ccc;border-radius:10px}
+    button{padding:12px 18px;border:none;border-radius:10px;background:#c69b6b;color:#fff;font-weight:600;cursor:pointer}
+    button:hover{background:#ad8355}
+    .row{margin-top:12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .msg{font-size:13px;color:#b3002d;min-height:18px}
+    .ok{color:#0b7c4a}
+    .btn-secondary{background:#e9e9e9;color:#333;text-decoration:none;display:inline-block;padding:12px 18px;border-radius:10px}
+    .btn-secondary:hover{background:#dcdcdc}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Unlock to continue</h1>
+    <p class="hint">
+      Paste the PRIVATE KEY (PEM) and enter the password set during registration. Unlock is required once per session.
+    </p>
+    <div class="grid">
+      <textarea id="pem" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"></textarea>
+      <input id="pwd" type="password" placeholder="Password (from registration)" />
+      <button id="unlockBtn" onclick="unlock()">Unlock</button>
+    </div>
+    <div class="row">
+      <div id="msg" class="msg"></div>
+      <div>
+        <a class="btn-secondary" href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const NEXT = "{{ next_feature }}"; // 'chat' or 'fileshare'
+
+    async function unlock(){
+      const pem = document.getElementById('pem').value.trim();
+      const pwd = document.getElementById('pwd').value;
+      const msg = document.getElementById('msg');
+      const btn = document.getElementById('unlockBtn');
+
+      if(!pem || !pwd){ msg.textContent='Private key and password are required.'; msg.className='msg'; return; }
+
+      btn.disabled = true;
+      try{
+        const r = await fetch('/api/unlock', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ private_key_pem: pem, password: pwd }),
+          credentials: "include"   // ✅ important
+        });
+        const j = await r.json();
+        if(j.success){
+          msg.textContent = 'Unlocked. Redirecting...';
+          msg.className = 'msg ok';
+          const dest = (NEXT === 'fileshare') ? '{{ url_for("fileshare") }}' : '{{ url_for("chat") }}';
+          setTimeout(()=> window.location = dest, 400);
+        }else{
+          msg.textContent = j.message || 'Unlock failed';
+          msg.className = 'msg';
+        }
+      }catch(e){
+        msg.textContent = 'Network error. Try again.';
+        msg.className = 'msg';
+      }finally{
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

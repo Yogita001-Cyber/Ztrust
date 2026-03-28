@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ZTrust - Input Validation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      /* Reusing chat.html theme tokens */
+      --sidebar-bg: #595959;
+      --tile-hover: #c69b6b;
+      --badge-ready: #c5f7c5;
+      --badge-ready-text: #1b531b;
+      --border: #dcdcdc;
+      --panel-bg: #f9f9f9;
+      --text: #333;
+    }
+    * { box-sizing: border-box; font-family: "Segoe UI", sans-serif; }
+    html, body { height: 100%; }
+    body { margin: 0; background: #f5f5f5; display: flex; justify-content: center; align-items: center; }
+
+    /* Shell mirrors chat.html: centered card with sidebar + main */
+    .app-shell {
+      width: 92vw; max-width: 1400px; height: 86vh; min-height: 640px;
+      background: #fff; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,.10);
+      display: grid; grid-template-columns: 300px 1fr;
+    }
+
+    /* Sidebar (same look as chat.html) */
+    .sidebar { background: var(--sidebar-bg); color: #fff; position: relative; display: grid; grid-template-rows: auto 1fr auto; }
+    .sidebar-header { padding: 22px 20px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 22px; font-weight: 700; text-align: center; letter-spacing: .5px; }
+    .sidebar-note { color: #f0e6e6; font-size: 13px; padding: 4px 6px 10px 6px; display: none; }
+    .sidebar-list { padding: 14px 14px 120px 14px; overflow-y: auto; }
+
+    .nav-tile { background: #777; border-radius: 10px; padding: 12px 14px; margin: 10px 0; cursor: pointer; transition: .2s; font-size: 14px; display: flex; justify-content: space-between; align-items: center; text-decoration: none; color: #fff; }
+    .nav-tile:hover, .nav-tile.active { background: var(--tile-hover); color: #fff; font-weight: 600; }
+    .me-dot { width: 8px; height: 8px; border-radius: 50%; background: #b58df0; display: inline-block; }
+    .me-name { font-weight: 700; font-size: 14px; }
+    .me-caret { margin-left: auto; opacity: .9; font-size: 12px; transition: .15s ease; }
+    .me-caret.open { transform: rotate(180deg); }
+
+    .me-dropdown {
+      display: none; margin-top: 8px; background: #484848; color: #fff;
+      border-radius: 10px; padding: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.28);
+      animation: fadeIn .12s ease-out;
+    }
+    .me-row { font-size: 14px; margin: 0 0 10px 0; opacity: .95; }
+
+    .dash-btn{
+      position: absolute; left: 80px; bottom: 50px;
+      background: #C7A06A; color:#fff; text-decoration:none;
+      padding: 10px 90px; border-radius: 8px; font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1); z-index: 1000;
+    }
+    .dash-btn:hover{ background: #ad8355; }
+
+    /* Actions row: one line, equal width + height buttons (same as updated chat.html) */
+    .me-actions{
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+      margin-top: 10px;
+    }
+    .me-actions a{
+      flex: 1 1 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      background: var(--tile-hover);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .me-actions a:hover { background: #ad8355; }
+
+    @keyframes fadeIn { from{opacity:0; transform: translateY(-4px);} to{opacity:1; transform:none;} }
+
+    /* Main column header */
+    .main {
+      display: grid;
+      grid-template-rows: auto 1fr; /* header | content */
+      height: 100%;
+      min-height: 0;
+      background: #fff;
+    }
+    .main-header {
+      flex: 0 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; padding: 14px 16px; background: #eee; border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .status { font-size: 12px; padding: 4px 8px; border-radius: 8px; background: var(--badge-ready); color: var(--badge-ready-text); }
+
+    /* Content area styled like chat panel background */
+    .content {
+      min-height: 0;
+      overflow-y: auto;
+      background: var(--panel-bg);
+      padding: 16px;
+    }
+
+    /* Form area styling consistent with chat spacing and inputs */
+    .section-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      color: #222;
+      font-weight: 600;
+    }
+
+    label { font-weight: 600; display: block; margin-bottom: 6px; font-size: 14px; color: #2a3a59; }
+    select, textarea, input[type="text"] {
+      width: 100%;
+      background: #fff;
+      border: 1px solid #b0bec5;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #223344;
+      outline: none;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    select:focus, textarea:focus, input[type="text"]:focus {
+      border-color: #9aa8b0;
+      box-shadow: 0 0 0 3px rgba(198,155,107,0.22);
+    }
+    textarea {
+      min-height: 140px;
+      resize: vertical;
+      border-radius: 12px;
+      font-family: 'Fira Mono', 'Consolas', monospace;
+      line-height: 1.45;
+    }
+
+    .actions-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .btn {
+      background: var(--tile-hover);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s ease, opacity .15s ease, transform .05s ease;
+    }
+    .btn:hover { background: #a88450; }
+    .btn:active { transform: translateY(1px); }
+
+    .btn.warn { background: #C7A06A; }
+    .btn.warn:hover { background: #a88450; }
+    .btn.alt { background: #C7A06A; color: #fff; }
+    .btn.alt:hover { background: #a88450; }
+
+    /* Results section: two columns like a responsive grid */
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 16px;
+    }
+    .panel {
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 15px;
+      line-height: 1.45;
+      border: 1px solid transparent;
+      background: #fff;
+    }
+    .panel.insecure { background: #FFECEC; color: #C0392B; border-color: #E74C3C; }
+    .panel.secure { background: #E6F8EC; color: #1E8449; border-color: #27AE60; }
+
+    pre {
+      margin: 10px 0 0 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: rgba(0,0,0,0.03);
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .explain {
+      background: #F0F4F8;
+      border: 1px solid #333333;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 16px;
+      color: #2F4F4F;
+      line-height: 1.5;
+      font-size: 15px;
+    }
+
+    @media (max-width: 1080px) {
+      .app-shell { grid-template-columns: 260px 1fr; }
+    }
+    @media (max-width: 860px) {
+      .app-shell { width: 96vw; height: 92vh; grid-template-columns: 1fr; }
+      .result-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">MODULES</div>
+      <div class="sidebar-note" id="sidebarNote">Failed to load</div>
+
+      <div class="sidebar-list" id="navList">
+        <a class="nav-tile active" href="input-validation.html">Input Validation</a>
+        <a class="nav-tile" href="authentication.html">Authentication</a>
+        <a class="nav-tile" href="sql-injection.html">SQL Injection</a>
+        <a class="nav-tile" href="xss-injection.html">XSS Injection</a>
+        <a class="nav-tile" href="access-control.html">Access Control</a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="main-header">
+        <span>Secure Coding Toolkit — Input Validation</span>
+        <span class="status" id="statusPill">Ready</span>
+      </div>
+
+      <div class="content">
+        <!-- Language and test input -->
+        <div class="section-card">
+          <h3 class="section-title">Run Validation Checks</h3>
+
+          <div style="display:grid; gap:12px; grid-template-columns: 220px 1fr;">
+            <div>
+              <label for="language-select">Language</label>
+              <select id="language-select">
+                <option value="css">CSS</option>
+                <option value="java">Java</option>
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+                <option value="c">C</option>
+                <option value="html">HTML</option>
+                <option value="php">PHP</option>
+              </select>
+            </div>
+            <div>
+              <label for="code-title">Snippet Title (optional)</label>
+              <input id="code-title" type="text" placeholder="e.g., Username validator snippet" />
+            </div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <label for="test-code">Test Code</label>
+            <textarea id="test-code" placeholder="// Paste your code here..."></textarea>
+            <div class="actions-row">
+              <button id="test-code-btn" class="btn">Test my code</button>
+              <button id="clear-btn" class="btn warn">Clear</button>
+              <button id="load-sample-btn" class="btn alt">Load Sample</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="section-card">
+          <h3 class="section-title">Results</h3>
+          <div class="result-grid">
+            <div class="panel insecure" id="result-insecure">
+              ❌ <strong>Insecure:</strong> (results will appear here)
+            </div>
+            <div class="panel secure" id="result-secure">
+              ✅ <strong>Secure:</strong> (suggestions will appear here)
+            </div>
+          </div>
+          <div class="explain" id="explanation-section">
+            <strong>Explanation:</strong>
+            <p>Explanation will appear here in plain, student-friendly English.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>// ------------------------------
+    // Input Validation logic (ported & themed)
+    // ------------------------------
+    function initInputValidationModule() {
+      const languageSelect = document.getElementById("language-select");
+      const testCodeArea = document.getElementById("test-code");
+      const testBtn = document.getElementById("test-code-btn");
+      const clearBtn = document.getElementById("clear-btn");
+      const sampleBtn = document.getElementById("load-sample-btn");
+      const insecurePanel = document.getElementById("result-insecure");
+      const securePanel = document.getElementById("result-secure");
+      const explanationP = document.querySelector("#explanation-section p");
+      const statusPill = document.getElementById('statusPill');
+
+      const samples = {
+        html: {
+          vulnerable: `<!-- HTML (Vulnerable) -->
+<input type="text" name="username"> <!-- No input validation -->`,
+          secure: `<!-- HTML (Secure) -->
+<input type="text" name="username" pattern="[A-Za-z]{3,20}" required>
+<!-- Pattern enforces 3-20 letters; field is required -->`,
+          explanation: `❌ The vulnerable input accepts any characters and can allow injections or malformed data.
+✅ The secure input restricts allowed characters with a pattern and requires this field, preventing empty or invalid input entries.`
+        },
+        css: {
+          vulnerable: `/* CSS (No Validation Possible) */
+input { border: 1px solid #ccc; }`,
+          secure: `/* CSS cannot enforce validation. Use HTML or JS validation instead. */`,
+          explanation: `❌ CSS styles inputs but cannot validate user input.
+✅ Implement validation via HTML attributes or JavaScript for security and correctness.`
+        },
+        java: {
+          vulnerable: `// Java (Vulnerable)
+Scanner sc = new Scanner(System.in);
+String userInput = sc.nextLine(); // No validation!`,
+          secure: `// Java (Secure)
+Scanner sc = new Scanner(System.in);
+String userInput = sc.nextLine();
+if (userInput.matches("[A-Za-z]{3,20}")) {
+    // Input is safe now
+} else {
+    System.out.println("Invalid input! Only letters, 3-20 chars.");
+}`,
+          explanation: `❌ Reading input directly without checks risks injection or malformed data.
+✅ Secure code validates input format precisely, preventing many attacks and errors.`
+        },
+        python: {
+          vulnerable: `# Python Example (Vulnerable)
+user_input = input("Enter something: ")
+result = eval(user_input)  # Dangerous eval usage!`,
+          secure: `# Python Example (Secure)
+import ast
+user_input = input("Enter something: ")
+try:
+    result = ast.literal_eval(user_input)  # Safe parsing of literals
+    print(result)
+except:
+    print("Invalid input!")`,
+          explanation: `❌ Using eval() directly executes arbitrary user input, which allows attackers to run any code.
+✅ Use ast.literal_eval() to safely evaluate literals, or implement strict validation to avoid code injection. Always avoid executing raw user input.`
+        },
+        php: {
+          vulnerable: `<?php
+$userInput = $_POST['username']; // Unsafe input`,
+          secure: `<?php
+$userInput = $_POST['username'];
+if (preg_match("/^[A-Za-z]{3,20}$/", $userInput)) {
+  // safe input
+} else {
+  echo "Invalid input!";
+}`,
+          explanation: `❌ Using immediate $_POST data without checks enables injection.
+✅ Regex validation limits allowed characters and length, making input safe.`
+        },
+        javascript: {
+          vulnerable: `// JS (Vulnerable)
+var userInput = prompt("Input"); // No validation`,
+          secure: `// JS (Secure)
+var userInput = prompt("Input (3-20 letters):");
+if (/^[A-Za-z]{3,20}$/.test(userInput)) {
+  alert("Valid input!");
+} else {
+  alert("Invalid input!");
+}`,
+          explanation: `❌ Accepting unchecked user input can cause XSS or logic errors.
+✅ Regex restricts input to safe characters and length. Always validate inputs.`
+        },
+        c: {
+          vulnerable: `// C (Vulnerable)
+char input[50];
+scanf("%49s", input);`,
+          secure: `// C (Secure)
+char input[50];
+if (scanf("%49s", input) == 1) {
+  int valid = 1;
+  for (int i=0; input[i]!='\\0'; i++) {
+    if (!isalpha((unsigned char)input[i])) valid = 0;
+  }
+  if (valid) printf("Valid input!\\n");
+  else printf("Invalid input!\\n");
+}`,
+          explanation: `❌ Using scanf without checking input is risky — buffer overflows & invalid data possible.
+✅ Check each character for allowed types, ensuring safer input handling.`
+        }
+      };
+
+      const vulnerablePatterns = {
+        html: ["<script>", "onclick=", "onerror=", "onload=", "javascript:", "href='javascript:"],
+        css: [],
+        java: ["scanner.nextline()", "scanner.next()", "readline", "executequery", "sql"],
+        python: [
+          "eval(", "exec(", "compile(", "os.system(", "os.popen(", "subprocess.popen(",
+          "subprocess.call(", "subprocess.run(", "pickle.load(", "pickle.loads(",
+          "marshal.load(", "marshal.loads(", "yaml.load(", "xml.etree.elementtree.parse(",
+          "xml.dom.minidom.parse(", "open(", "__import__(", "imp.load_source(",
+          "importlib.import_module(", "tempfile.mktemp(", "shutil.rmtree(", "ftplib.ftp(",
+          "http.client.httpconnection(", "socket.socket(", "hashlib.md5(", "hashlib.sha1("
+        ],
+        php: ["$_post", "mysql_query", "mysqli_query", "eval(", "exec(", "system(", "shell_exec(", "passthru(", "base64_decode("],
+        javascript: ["prompt(", "document.write", "innerhtml", "eval(", "innerhtml"],
+        c: ["scanf", "gets", "strcpy", "strcat", "strncpy"]
+      };
+
+      function normalizeCode(str) {
+        return str.replace(/\s+/g, '').toLowerCase();
+      }
+      function isVulnerableSample(inputCode, sampleCode) {
+        return normalizeCode(inputCode) === normalizeCode(sampleCode);
+      }
+      function clearAll() {
+        testCodeArea.value = "";
+        insecurePanel.innerHTML = '❌ <strong>Insecure:</strong> (results will appear here)';
+        securePanel.innerHTML = '✅ <strong>Secure:</strong> (suggestions will appear here)';
+        explanationP.textContent = "Explanation will appear here in plain, student-friendly English.";
+        statusPill.textContent = "Ready";
+      }
+
+      function checkUserCode(code, lang) {
+        if (!code.trim()) {
+          clearAll();
+          return;
+        }
+        statusPill.textContent = "Analyzing…";
+        const lowerCode = code.toLowerCase();
+        const foundPatterns = (vulnerablePatterns[lang] || []).filter(pat => lowerCode.includes(pat));
+
+        let detectedNoValidation = false;
+        switch (lang) {
+          case "java":
+            if (lowerCode.includes("scanner.nextline") && !lowerCode.includes("match")) detectedNoValidation = true;
+            break;
+          case "python":
+            if (lowerCode.includes("input()") && !lowerCode.includes("re.match")) detectedNoValidation = true;
+            break;
+          case "javascript":
+            if (lowerCode.includes("prompt(") && !lowerCode.includes(".test") && !lowerCode.includes("match")) detectedNoValidation = true;
+            break;
+          case "php":
+            if (lowerCode.includes("$_post") && !lowerCode.includes("preg_match")) detectedNoValidation = true;
+            break;
+          case "c":
+            if (lowerCode.includes("scanf") && !lowerCode.includes("isalpha")) detectedNoValidation = true;
+            break;
+        }
+
+        if (isVulnerableSample(code, samples[lang]?.vulnerable || "") || foundPatterns.length > 0 || detectedNoValidation) {
+          insecurePanel.innerHTML = `❌ <strong>Insecure:</strong><pre>${escapeHtml(code)}</pre>`;
+          securePanel.innerHTML = `✅ <strong>Secure:</strong><pre>${escapeHtml(samples[lang]?.secure || "No secure sample available.")}</pre>`;
+          if (detectedNoValidation && foundPatterns.length === 0 && !isVulnerableSample(code, samples[lang]?.vulnerable || "")) {
+            explanationP.textContent = `Your code uses input without proper validation, which is unsafe. ${samples[lang]?.explanation || ""}`;
+          } else if (foundPatterns.length > 0) {
+            explanationP.textContent = `Detected risky usage of: ${foundPatterns.join(", ")}. ${samples[lang]?.explanation || ""}`;
+          } else {
+            explanationP.textContent = samples[lang]?.explanation || "";
+          }
+          statusPill.textContent = "Review issues";
+          return;
+        }
+
+        insecurePanel.innerHTML = "No obvious input vulnerabilities found.";
+        securePanel.innerHTML = "Good job! Input handling appears secure.";
+        explanationP.textContent = "Well-validated input protects your application from many common vulnerabilities.";
+        statusPill.textContent = "Looks good";
+      }
+
+      function showSample(lang) {
+        insecurePanel.innerHTML = `❌ <strong>Insecure:</strong><pre>${escapeHtml(samples[lang]?.vulnerable || "N/A")}</pre>`;
+        securePanel.innerHTML = `✅ <strong>Secure:</strong><pre>${escapeHtml(samples[lang]?.secure || "N/A")}</pre>`;
+        explanationP.textContent = samples[lang]?.explanation || "N/A";
+        testCodeArea.value = samples[lang]?.vulnerable || "";
+        statusPill.textContent = "Sample loaded";
+      }
+
+      function escapeHtml(s){
+        return String(s)
+          .replaceAll("&","&amp;")
+          .replaceAll("<","&lt;")
+          .replaceAll(">","&gt;");
+      }
+
+      // Wire buttons
+      sampleBtn.onclick = () => showSample(languageSelect.value);
+      clearBtn.onclick = () => clearAll();
+      testBtn.onclick = () => checkUserCode(testCodeArea.value, languageSelect.value);
+      languageSelect.onchange = () => clearAll();
+
+      // Init default state
+      clearAll();
+    }
+
+    window.addEventListener('DOMContentLoaded', initInputValidationModule);
+  </script>
+<a href="/dashboard" class="dash-btn">← Dashboard</a>
+</body>
+</html>

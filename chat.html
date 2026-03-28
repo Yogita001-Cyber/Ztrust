@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ZTrust Chat</title>
+  <style>
+    :root {
+      --sidebar-bg: #595959;
+      --sidebar-chip: #3c3c3c;
+      --tile-hover: #c69b6b;
+      --badge-ready: #c5f7c5;
+      --badge-ready-text: #1b531b;
+      --border: #dcdcdc;
+      --chat-bg: #f9f9f9;
+    }
+    * { box-sizing: border-box; font-family: "Segoe UI", sans-serif; }
+    html, body { height: 100%; }
+    body { margin: 0; background: #f5f5f5; display: flex; justify-content: center; align-items: center; }
+
+    .chat-shell {
+      width: 92vw; max-width: 1400px; height: 86vh; min-height: 640px;
+      background: #fff; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,.10);
+      display: grid; grid-template-columns: 300px 1fr;
+    }
+
+    /* Sidebar */
+    .sidebar { background: var(--sidebar-bg); color: #fff; position: relative; display: grid; grid-template-rows: auto 1fr auto; }
+    .sidebar-header { padding: 22px 20px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 22px; font-weight: 700; text-align: center; letter-spacing: .5px; }
+    .sidebar-note { color: #f0e6e6; font-size: 13px; padding: 4px 6px 10px 6px; display: none; }
+    .sidebar-list { padding: 14px 14px 120px 14px; overflow-y: auto; }
+
+    .user-tile { background: #777; border-radius: 10px; padding: 12px 14px; margin: 10px 0; cursor: pointer; transition: .2s; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+    .user-tile:hover, .user-tile.selected { background: var(--tile-hover); color: #fff; font-weight: 600; }
+
+    .badge {
+      background: red;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 50%;
+      font-size: 12px;
+      display: none; /* hidden by default */
+    }
+
+    /* Current user chip + dropdown */
+    .me-wrap { position: sticky; bottom: 0; margin: 12px; }
+    .me-chip {
+      background: var(--sidebar-chip); color: #fff; border-radius: 10px;
+      padding: 10px 12px; display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.15); user-select: none; cursor: pointer;
+    }
+    .me-dot { width: 8px; height: 8px; border-radius: 50%; background: #b58df0; display: inline-block; }
+    .me-name { font-weight: 700; font-size: 14px; }
+    .me-caret { margin-left: auto; opacity: .9; font-size: 12px; transition: .15s ease; }
+    .me-caret.open { transform: rotate(180deg); }
+
+    .me-dropdown {
+      display: none; margin-top: 8px; background: #484848; color: #fff;
+      border-radius: 10px; padding: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.28);
+      animation: fadeIn .12s ease-out;
+    }
+    .me-row { font-size: 14px; margin: 0 0 10px 0; opacity: .95; }
+
+    /* Actions row: one line, equal width + height buttons */
+    .me-actions{
+      display: flex;
+      gap: 8px;
+      align-items: stretch;      /* equal heights */
+      margin-top: 10px;
+    }
+    .me-actions a{
+      flex: 1 1 0;               /* equal widths */
+      display: flex;             /* center label */
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;          /* consistent height */
+      background: var(--tile-hover);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;       /* keep on one line */
+    }
+    .me-actions a:hover { background: #ad8355; }
+
+    @keyframes fadeIn { from{opacity:0; transform: translateY(-4px);} to{opacity:1; transform:none;} }
+
+    /* Chat column */
+    .chat {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      background: #fff;
+    }
+    .chat-header {
+      flex: 0 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; padding: 14px 16px; background: #eee; border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .status { font-size: 12px; padding: 4px 8px; border-radius: 8px; background: var(--badge-ready); color: var(--badge-ready-text); }
+
+    .messages {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      background: var(--chat-bg);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+    .bubble { max-width: 70%; padding: 10px 12px; border-radius: 10px; margin: 4px 0; background: #e0e0e0; white-space: pre-wrap; word-wrap: break-word; }
+    .bubble.me { background: #d2ffd2; align-self: flex-end; }
+    .bubble.other { background: #e6e6ff; align-self: flex-start; }
+
+    .seen-text {
+      font-size: 11px;
+      opacity: 0.6;
+      margin-top: 2px;
+    }
+
+    .composer {
+      flex: 0 0 auto;
+      display: grid; grid-template-columns: 1fr 110px; gap: 10px; padding: 10px; background: #eee; border-top: 1px solid var(--border);
+    }
+    .composer input { padding: 12px; border: 1px solid #bbb; border-radius: 10px; font-size: 16px; }
+    .composer button { padding: 12px; background: var(--tile-hover); color: #fff; border: none; border-radius: 10px; font-size: 16px; cursor: pointer; }
+    .composer button:hover { background: #ad8355; }
+
+    @media (max-width: 1080px) {
+      .chat-shell { grid-template-columns: 260px 1fr; }
+    }
+    @media (max-width: 860px) {
+      .chat-shell { width: 96vw; height: 92vh; grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-shell">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">USERS</div>
+      <div class="sidebar-note" id="sidebarNote">Failed to fetch</div>
+      <div class="sidebar-list" id="userList">
+        {% for u in users %}
+          <div class="user-tile" data-id="{{ u.id }}" data-name="{{ u.name }}"
+               onclick="selectUser('{{ u.id }}','{{ u.name|e }}')">
+            <span>{{ u.name }} ({{ u.email }})</span>
+            <span class="badge" id="badge-{{u.id}}">0</span>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Current user chip + dropdown -->
+      <div class="me-wrap">
+        <div class="me-chip" id="meChip">
+          <span class="me-dot"></span>
+          <span class="me-name">{{ current_user.name }}</span>
+          <span class="me-caret" id="meCaret">▾</span>
+        </div>
+        <div class="me-dropdown" id="meDropdown">
+          <div class="me-row">Name: {{ current_user.name }}</div>
+          <div class="me-row">Email: {{ current_user.email }}</div>
+          <div class="me-actions">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('fileshare') }}">Fileshare</a>
+            <a href="{{ url_for('logout') }}">Sign Out</a>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Chat -->
+    <section class="chat">
+      <div class="chat-header">
+        <span id="chatTitle">Select a user to chat</span>
+        <span class="status">Ready</span>
+      </div>
+
+      <div class="messages" id="messages"></div>
+
+      <div class="composer">
+        <input id="msgInput" type="text" placeholder="write the message" autocomplete="off" />
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Sign-out dropdown behavior
+    const meChip = document.getElementById('meChip');
+    const meDropdown = document.getElementById('meDropdown');
+    const meCaret = document.getElementById('meCaret');
+
+    function toggleMeDropdown(force){
+      const willOpen = force !== undefined ? force : (meDropdown.style.display !== 'block');
+      meDropdown.style.display = willOpen ? 'block' : 'none';
+      meCaret.classList.toggle('open', willOpen);
+    }
+    meChip.addEventListener('click', (e)=>{ e.stopPropagation(); toggleMeDropdown(); });
+    document.addEventListener('click', (e)=>{
+      if (!meDropdown.contains(e.target) && !meChip.contains(e.target)) toggleMeDropdown(false);
+    });
+
+    // Chat logic
+    let currentPeerId = null;
+    let poll = null;
+    let lastMarkSeenAt = 0; // throttle "mark seen" calls
+    const sidebarNote = document.getElementById('sidebarNote');
+    const messagesEl = document.getElementById('messages');
+
+    function hideBadge(uid) {
+      const badge = document.getElementById(`badge-${uid}`);
+      if (badge) { badge.textContent = "0"; badge.style.display = "none"; }
+    }
+
+    async function selectUser(id, name){
+      currentPeerId = id;
+      document.getElementById('chatTitle').textContent = 'Chat with: ' + name;
+
+      // highlight tile
+      document.querySelectorAll('.user-tile').forEach(n => n.classList.remove('selected'));
+      const tile = document.querySelector(`.user-tile[data-id="${id}"]`);
+      if (tile) tile.classList.add('selected');
+
+      // clear this user's badge immediately
+      hideBadge(id);
+
+      // Fetch messages first
+      await fetchMessages();
+
+      // mark all as seen on open
+      await markSeenActiveChat(true);
+
+      startPolling();
+    }
+
+    async function markSeenActiveChat(force = false) {
+      if (!currentPeerId) return;
+      const now = Date.now();
+      if (!force && now - lastMarkSeenAt < 1000) return; // 1s throttle
+      lastMarkSeenAt = now;
+      try {
+        const r = await fetch('/api/mark_seen', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ peer_id: currentPeerId }),
+          credentials: "include"
+        });
+        if (r.ok) {
+          hideBadge(currentPeerId);
+          await fetchMessages();
+          await fetchUnreadCounts();
+        }
+      } catch(e) {
+        console.error("markSeenActiveChat error", e);
+      }
+    }
+
+    async function fetchMessages(){
+      if(!currentPeerId) return;
+      try{
+        const r = await fetch('/api/messages?peer_id=' + encodeURIComponent(currentPeerId), {
+          credentials: "include"
+        });
+        if (r.status === 403) { window.location = '{{ url_for("unlock_page", next="chat") }}'; return; }
+        const j = await r.json();
+        if (j && j.success) {
+          renderMessages(j.messages || []);
+          sidebarNote.style.display = 'none';
+        }
+      }catch(e){
+        sidebarNote.style.display = 'block';
+      }
+    }
+
+    async function fetchUnreadCounts() {
+      try {
+        const r = await fetch('/api/unread_counts', { credentials: "include" });
+        if (!r.ok) return;
+        const counts = await r.json();
+
+        if (currentPeerId) hideBadge(currentPeerId);
+
+        const tiles = document.querySelectorAll('.user-tile');
+        tiles.forEach(tile => {
+          const uid = String(tile.getAttribute('data-id'));
+          const badge = document.getElementById(`badge-${uid}`);
+          if (!badge) return;
+
+          if (currentPeerId && uid === String(currentPeerId)) {
+            hideBadge(uid);
+            return;
+          }
+
+          const count = counts[uid] || 0;
+          if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = "inline-block";
+          } else {
+            hideBadge(uid);
+          }
+        });
+      } catch (e) {
+        console.error("Unread counts error", e);
+      }
+    }
+
+    function renderMessages(list){
+      messagesEl.innerHTML = '';
+      list.forEach(m=>{
+        const wrapper = document.createElement('div');
+        wrapper.style.display = 'flex';
+        wrapper.style.flexDirection = 'column';
+        wrapper.style.alignItems = (m.direction === 'You' ? 'flex-end' : 'flex-start');
+        wrapper.style.marginBottom = '6px';
+
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble ' + (m.direction === 'You' ? 'me' : 'other');
+        bubble.textContent = m.plaintext;
+        wrapper.appendChild(bubble);
+
+        if(m.direction === 'You' && m.is_read && m.seen_at){
+          const seenEl = document.createElement('div');
+          seenEl.textContent = "seen at: " + m.seen_at;
+          seenEl.className = "seen-text";
+          wrapper.appendChild(seenEl);
+        }
+
+        messagesEl.appendChild(wrapper);
+      });
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function startPolling(){
+      stopPolling();
+      fetchMessages();
+      fetchUnreadCounts();
+      poll = setInterval(async ()=>{
+        await fetchMessages();
+        await fetchUnreadCounts();
+        await markSeenActiveChat();
+      }, 2500);
+    }
+
+    function stopPolling(){ if(poll) clearInterval(poll); poll = null; }
+
+    async function sendMessage(){
+      const input = document.getElementById('msgInput');
+      const text = input.value.trim();
+      if(!currentPeerId){ alert('Select a user first.'); return; }
+      if(!text) return;
+      try{
+        const r = await fetch('/api/send_message', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ peer_id: currentPeerId, message: text }),
+          credentials: "include"
+        });
+        if (r.status === 403) { window.location = '{{ url_for("unlock_page", next="chat") }}'; return; }
+        const j = await r.json();
+        if(j && j.success){
+          input.value='';
+          await fetchMessages();
+          await fetchUnreadCounts();
+          await markSeenActiveChat(true);
+        }
+        else{
+          alert(j.message || 'Failed to send.');
+        }
+      }catch(e){ alert('Network error while sending.'); }
+    }
+
+    document.getElementById('msgInput').addEventListener('keydown', e=>{
+      if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }
+    });
+
+    fetch('/api/guard-unlocked', { credentials: "include" }).then(r=>{
+      if (r.status === 403) window.location = '{{ url_for("unlock_page", next="chat") }}';
+    }).catch(()=>{});
+
+    fetchUnreadCounts();
+
+    window.addEventListener('beforeunload', stopPolling);
+  </script>
+</body>
+</html>

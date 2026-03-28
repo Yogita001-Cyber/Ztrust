@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ZTrust - Authentication</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      /* Reusing input-validation.html theme tokens */
+      --sidebar-bg: #595959;
+      --sidebar-chip: #3c3c3c;
+      --tile-hover: #c69b6b;
+      --badge-ready: #c5f7c5;
+      --badge-ready-text: #1b531b;
+      --border: #dcdcdc;
+      --panel-bg: #f9f9f9;
+      --text: #333;
+    }
+    * { box-sizing: border-box; font-family: "Segoe UI", sans-serif; }
+    html, body { height: 100%; }
+    body { margin: 0; background: #f5f5f5; display: flex; justify-content: center; align-items: center; }
+
+    /* Shell mirrors input-validation.html: centered card with sidebar + main */
+    .app-shell {
+      width: 92vw; max-width: 1400px; height: 86vh; min-height: 640px;
+      background: #fff; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,.10);
+      display: grid; grid-template-columns: 300px 1fr;
+    }
+
+    /* Sidebar (same look as reference) */
+    .sidebar { background: var(--sidebar-bg); color: #fff; position: relative; display: grid; grid-template-rows: auto 1fr auto; }
+    .sidebar-header { padding: 22px 20px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 22px; font-weight: 700; text-align: center; letter-spacing: .5px; }
+    .sidebar-note { color: #f0e6e6; font-size: 13px; padding: 4px 6px 10px 6px; display: none; }
+    .sidebar-list { padding: 14px 14px 120px 14px; overflow-y: auto; }
+
+    .nav-tile { background: #777; border-radius: 10px; padding: 12px 14px; margin: 10px 0; cursor: pointer; transition: .2s; font-size: 14px; display: flex; justify-content: space-between; align-items: center; text-decoration: none; color: #fff; }
+    .nav-tile:hover, .nav-tile.active { background: var(--tile-hover); color: #fff; font-weight: 600; }
+
+    /* Bottom user chip + dropdown */
+    .me-dot { width: 8px; height: 8px; border-radius: 50%; background: #b58df0; display: inline-block; }
+    .me-name { font-weight: 700; font-size: 14px; }
+    .me-caret { margin-left: auto; opacity: .9; font-size: 12px; transition: .15s ease; }
+    .me-caret.open { transform: rotate(180deg); }
+    .me-row { font-size: 14px; margin: 0 0 10px 0; opacity: .95; }
+
+    .dash-btn{
+      position: absolute; left: 80px; bottom: 50px;
+      background: #C7A06A; color:#fff; text-decoration:none;
+      padding: 10px 90px; border-radius: 8px; font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1); z-index: 1000;
+    }
+    .dash-btn:hover{ background: #ad8505; }
+
+    /* Actions row inside dropdown */
+    .me-actions{
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+      margin-top: 10px;
+    }
+    .me-actions a{
+      flex: 1 1 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      background: var(--tile-hover);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .me-actions a:hover { background: #ad8355; }
+
+    @keyframes fadeIn { from{opacity:0; transform: translateY(-4px);} to{opacity:1; transform:none;} }
+
+    /* Main column header */
+    .main {
+      display: grid;
+      grid-template-rows: auto 1fr; /* header | content */
+      height: 100%;
+      min-height: 0;
+      background: #fff;
+    }
+    .main-header {
+      flex: 0 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; padding: 14px 16px; background: #eee; border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .status { font-size: 12px; padding: 4px 8px; border-radius: 8px; background: var(--badge-ready); color: var(--badge-ready-text); }
+
+    /* Content area styled like reference panel background */
+    .content {
+      min-height: 0;
+      overflow-y: auto;
+      background: var(--panel-bg);
+      padding: 16px;
+    }
+
+    /* Cards and titles */
+    .section-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      color: #222;
+      font-weight: 600;
+    }
+
+    /* Form controls */
+    label { font-weight: 600; display: block; margin-bottom: 6px; font-size: 14px; color: #2a3a59; }
+    select, textarea, input[type="text"] {
+      width: 100%;
+      background: #fff;
+      border: 1px solid #b0bec5;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #223344;
+      outline: none;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    select:focus, textarea:focus, input[type="text"]:focus {
+      border-color: #9aa8b0;
+      box-shadow: 0 0 0 3px rgba(198,155,107,0.22);
+    }
+    textarea {
+      min-height: 140px;
+      resize: vertical;
+      border-radius: 12px;
+      font-family: 'Fira Mono', 'Consolas', monospace;
+      line-height: 1.45;
+    }
+
+    /* Actions row */
+    .actions-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .btn {
+      background: var(--tile-hover);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s ease, opacity .15s ease, transform .05s ease;
+    }
+    .btn:hover { background: #a88450; }
+    .btn:active { transform: translateY(1px); }
+
+    .btn.warn { background: #C7A06A; }
+    .btn.warn:hover { background: #a88450; }
+    .btn.alt { background: #C7A06A; color: #fff; }
+    .btn.alt:hover { background: #a88450; }
+
+    /* Results section: two columns like reference */
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 16px;
+    }
+    .panel {
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 15px;
+      line-height: 1.45;
+      border: 1px solid transparent;
+      background: #fff;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .panel.insecure { background: #FFECEC; color: #C0392B; border-color: #E74C3C; }
+    .panel.secure { background: #E6F8EC; color: #1E8449; border-color: #27AE60; }
+
+    pre {
+      margin: 10px 0 0 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: rgba(0,0,0,0.03);
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .explain {
+      background: #F0F4F8;
+      border: 1px solid #333333;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 16px;
+      color: #2F4F4F;
+      line-height: 1.5;
+      font-size: 15px;
+    }
+
+    @media (max-width: 1080px) {
+      .app-shell { grid-template-columns: 260px 1fr; }
+    }
+    @media (max-width: 860px) {
+      .app-shell { width: 96vw; height: 92vh; grid-template-columns: 1fr; }
+      .result-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">MODULES</div>
+      <div class="sidebar-note" id="sidebarNote">Failed to load</div>
+
+      <div class="sidebar-list" id="navList">
+        <a class="nav-tile" href="input-validation.html">Input Validation</a>
+        <a class="nav-tile active" href="authentication.html">Authentication</a>
+        <a class="nav-tile" href="sql-injection.html">SQL Injection</a>
+        <a class="nav-tile" href="xss-injection.html">XSS Injection</a>
+        <a class="nav-tile" href="access-control.html">Access Control</a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="main-header">
+        <span>Secure Coding Toolkit — Authentication</span>
+        <span class="status" id="statusPill">Ready</span>
+      </div>
+
+      <div class="content">
+        <!-- Method and language selectors -->
+        <div class="section-card">
+          <h3 class="section-title">Run Authentication Checks</h3>
+
+          <div style="display:grid; gap:12px; grid-template-columns: 220px 1fr;">
+            <div>
+              <label for="auth-method-select">Authentication Method</label>
+              <select id="auth-method-select">
+                <option value="password">Password-Based</option>
+                <option value="otp">OTP (One Time Password)</option>
+                <option value="oauth2">OAuth2</option>
+                <option value="jwt">JWT Token</option>
+                <option value="session">Session Cookies</option>
+              </select>
+            </div>
+            <div>
+              <label for="auth-language-select">Language</label>
+              <select id="auth-language-select">
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+                <option value="java">Java</option>
+                <option value="php">PHP</option>
+                <option value="csharp">C#</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <label for="auth-code">Authentication Code</label>
+            <textarea id="auth-code" placeholder="// Paste your authentication code here..."></textarea>
+            <div class="actions-row">
+              <button id="auth-test-btn" class="btn">Test my code</button>
+              <button id="auth-clear-btn" class="btn warn">Clear</button>
+              <button id="auth-sample-btn" class="btn alt">Load Sample</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="section-card">
+          <h3 class="section-title">Results</h3>
+          <div class="result-grid">
+            <div class="panel insecure" id="auth-result-insecure">
+              ❌ <strong>Insecure:</strong> (results will appear here)
+            </div>
+            <div class="panel secure" id="auth-result-secure">
+              ✅ <strong>Secure:</strong> (suggestions will appear here)
+            </div>
+          </div>
+          <div class="explain" id="auth-explanation-section">
+            <strong>Explanation:</strong>
+            <p>Explanation will appear here in plain, student-friendly English.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ------------------------------
+    // Authentication module logic (ported & themed)
+    // ------------------------------
+    function initAuthenticationModule() {
+      const methodSelect = document.getElementById("auth-method-select");
+      const languageSelect = document.getElementById("auth-language-select");
+      const codeArea = document.getElementById("auth-code");
+      const testBtn = document.getElementById("auth-test-btn");
+      const clearBtn = document.getElementById("auth-clear-btn");
+      const sampleBtn = document.getElementById("auth-sample-btn");
+      const insecurePanel = document.getElementById("auth-result-insecure");
+      const securePanel = document.getElementById("auth-result-secure");
+      const explanationP = document.querySelector("#auth-explanation-section p");
+      const statusPill = document.getElementById('statusPill');
+
+      const samples = {
+        password: {
+          python: {
+            vulnerable: `# Insecure password check in Python
+if input_user == db_user and input_pass == db_pass:
+    print("Authenticated")  # Plain comparison, likely plaintext!`,
+            secure: `# Secure password check in Python
+import bcrypt
+if bcrypt.checkpw(input_pass.encode(), stored_hash):
+    print("Authenticated")  # Uses hashed password`
+          },
+          javascript: {
+            vulnerable: `// Insecure: plain password check
+if (inputPass === storedPass) {
+  alert("Authenticated"); // Danger: plain-text in code/db!
+}`,
+            secure: `// Secure: hashed password check
+const bcrypt = require('bcrypt');
+if (bcrypt.compareSync(inputPass, storedHash)) {
+  alert("Authenticated"); // Secure - uses hash.
+}`
+          },
+          java: {
+            vulnerable: `// Insecure: password stored/checked plainly
+if (inputPass.equals(dbPass)) {
+    System.out.println("Authenticated");
+}`,
+            secure: `// Secure: hashed password checks
+if (BCrypt.checkpw(inputPass, storedHash)) {
+    System.out.println("Authenticated");
+}`
+          },
+          php: {
+            vulnerable: `// Insecure: plain-text password
+if ($_POST['password'] === $row['password']) {
+    echo "Authenticated";
+}`,
+            secure: `// Secure: hashed passwords
+if (password_verify($_POST['password'], $row['password_hash'])) {
+    echo "Authenticated";
+}`
+          },
+          csharp: {
+            vulnerable: `// Insecure: plaintext check
+if (inputPass == storedPass) {
+    Console.WriteLine("Authenticated");
+}`,
+            secure: `// Secure: hashed + salted verification
+if (BCrypt.Net.BCrypt.Verify(inputPass, storedHash)) {
+    Console.WriteLine("Authenticated");
+}`
+          }
+        },
+        otp: {
+          python: {
+            vulnerable: `# OTP insecure practice - hardcoded OTP
+otp = "123456"
+user_otp = input("Enter OTP: ")
+if user_otp == otp:
+    print("Authenticated")`,
+            secure: `# Secure OTP check with expiry and randomness
+import pyotp
+otp_secret = "JBSWY3DPEHPK3PXP"
+totp = pyotp.TOTP(otp_secret)
+if totp.verify(user_otp):
+    print("Authenticated")`
+          },
+          javascript: {
+            vulnerable: `// OTP insecure - static OTP
+const otp = "123456";
+const userOtp = prompt("Enter OTP");
+if (userOtp === otp) {
+  alert("Authenticated");
+}`,
+            secure: `// Secure OTP with time-based token
+const speakeasy = require('speakeasy');
+const verified = speakeasy.totp.verify({
+  secret: userSecret, encoding: 'base32', token: userOtp
+});
+if (verified) alert("Authenticated");`
+          },
+          java: {
+            vulnerable: `// OTP insecure - hardcoded OTP
+String otp = "123456";
+String input = scanner.nextLine();
+if (input.equals(otp))
+  System.out.println("Authenticated");`,
+            secure: `// Secure OTP with TOTP library
+// Uses Google Authenticator compatible algorithm
+if (totpAuthenticator.authenticate(inputOtp))
+  System.out.println("Authenticated");`
+          },
+          php: {
+            vulnerable: `// OTP insecure - fixed OTP
+$otp = "123456";
+if ($_POST['otp'] == $otp) {
+  echo "Authenticated";
+}`,
+            secure: `// Secure OTP using Google2FA PHP library
+if ($google2fa->verifyKey($secret, $userOtp)) {
+  echo "Authenticated";
+}`
+          },
+          csharp: {
+            vulnerable: `// OTP insecure - static OTP
+string otp = "123456";
+if (inputOtp == otp)
+    Console.WriteLine("Authenticated");`,
+            secure: `// Secure OTP using Otp.NET library
+var totp = new Totp(secretBytes);
+if (totp.VerifyTotp(inputOtp, out long timeStepMatched))
+    Console.WriteLine("Authenticated");`
+          }
+        },
+        oauth2: {
+          python: {
+            vulnerable: `# OAuth improper token validation
+access_token = request.headers.get("Authorization")
+if access_token == stored_token:
+    grant_access()`,
+            secure: `# OAuth token introspection and validation
+# Validate JWT, scopes, expiry before granting access`
+          },
+          javascript: {
+            vulnerable: `// OAuth poor token validation
+if(req.headers['authorization'] === storedToken) {
+  proceed();
+}`,
+            secure: `// Proper validation with library
+// e.g., passport.authenticate('oauth2', { session: false })`
+          },
+          java: {
+            vulnerable: `// OAuth weak token check
+if(token.equals(storedToken)) {
+  grantAccess();
+}`,
+            secure: `// Use Spring Security OAuth for token validation
+@PreAuthorize("hasRole('USER')")`
+          },
+          php: {
+            vulnerable: `// OAuth naive token validation
+if($_SERVER['HTTP_AUTHORIZATION'] == $token) {
+  accessGranded();
+}`,
+            secure: `// Use league/oauth2-server for security
+$server->verifyAccessToken();`
+          },
+          csharp: {
+            vulnerable: `// OAuth weak token validation
+if(token == storedToken) {
+  Authorize();
+}`,
+            secure: `// Use Microsoft.AspNetCore.Authentication.JwtBearer middleware`
+          }
+        },
+        jwt: {
+          python: {
+            vulnerable: `# JWT not verified
+payload = jwt.decode(token, options={"verify_signature": False})`,
+            secure: `# JWT verified with secret key
+payload = jwt.decode(token, secret_key, algorithms=["HS256"])`
+          },
+          javascript: {
+            vulnerable: `// JWT no signature verification
+jwt.decode(token);`,
+            secure: `// JWT verified
+jwt.verify(token, secret);`
+          },
+          java: {
+            vulnerable: `// JWT decoded ignoring signature
+Jwt jwt = JwtHelper.decode(token);`,
+            secure: `// JWT verified with library
+macVerifier.verify(token);`
+          },
+          php: {
+            vulnerable: `// JWT decoded without verify
+JWT::decode($jwt, null, false);`,
+            secure: `// JWT verified with secret
+JWT::decode($jwt, $key, ['HS256']);`
+          },
+          csharp: {
+            vulnerable: `// JWT decoded without validation
+var handler = new JwtSecurityTokenHandler();
+var token = handler.ReadJwtToken(jwtToken);`,
+            secure: `// JWT validated
+var token = handler.ValidateToken(jwtToken, validationParameters, out SecurityToken validatedToken);`
+          }
+        },
+        session: {
+          python: {
+            vulnerable: `# Session fixation example
+session['user'] = user_id  # Without regenerating session id`,
+            secure: `# Proper session management
+session.clear()
+session['user'] = user_id
+# Regenerate session id`
+          },
+          javascript: {
+            vulnerable: `// Session fixation
+req.session.user = userId;`,
+            secure: `// Regenerate session ID on login
+req.session.regenerate(function(err) {})`
+          },
+          java: {
+            vulnerable: `// Session fixation
+HttpSession session = request.getSession(false);
+session.setAttribute("user", user);`,
+            secure: `// Invalidate and create new session
+request.getSession().invalidate();
+HttpSession newSession = request.getSession(true);`
+          },
+          php: {
+            vulnerable: `// Session fixation
+$_SESSION['user'] = $user;`,
+            secure: `// Regenerate session ID
+session_regenerate_id(true);
+$_SESSION['user'] = $user;`
+          },
+          csharp: {
+            vulnerable: `// Session fixation
+HttpContext.Current.Session["user"] = user;`,
+            secure: `// Proper session management
+HttpContext.Current.Session.Abandon();
+# Start new session`
+          }
+        }
+      };
+
+      const explanations = {
+        password: {
+          insecure: `❌ Plain-text password comparisons and storage are highly insecure.<br>Passwords should never be stored or compared in plain text.`,
+          secure: `✅ Use modern password hashing algorithms (bcrypt, Argon2, etc.) and verify with hashes.`
+        },
+        otp: {
+          insecure: `❌ Hardcoded or static OTP values can be guessed or leaked, compromising security.`,
+          secure: `✅ Use time-based OTP algorithms (TOTP) with shared secrets and short expiration.`
+        },
+        oauth2: {
+          insecure: `❌ Simple token string comparisons without validation expose to token theft and replay.`,
+          secure: `✅ Use proper OAuth2 token introspection or validation with scopes and expiry checks.`
+        },
+        jwt: {
+          insecure: `❌ Accepting JWTs without verifying signature allows token forgery.`,
+          secure: `✅ Always verify JWT signature and claims (issuer, audience, expiry) on server side.`
+        },
+        session: {
+          insecure: `❌ Not regenerating session IDs on login leads to session fixation attacks.`,
+          secure: `✅ Regenerate session ID after login and properly manage session lifecycle securely.`
+        }
+      };
+
+      // Rules
+      const vulnerabilityRules = [
+        // PASSWORDS
+        {
+          id: "pw-plain-compare-generic",
+          pattern: /\b(if|while)\s*\([^)]*(user|input|entered)\s*(pass(word)?|pwd)[^)]*(==|===|!=|equals?\s*\()[^)]*(db|stored|saved)?\s*(pass(word)?|pwd)[^)]*\)/i,
+          message: "Plain-text password comparison detected.",
+          applies: { method: "password" },
+          hint: "Use bcrypt/Argon2 and compare hashes, not raw strings."
+        },
+        {
+          id: "pw-hardcoded-generic",
+          pattern: /\b(pass(word)?|pwd)\s*[:=]\s*["'`][^"'`]{1,}["'`]/i,
+          message: "Hardcoded password found.",
+          applies: { method: "password" },
+          hint: "Never hardcode credentials; store salted hashes."
+        },
+        {
+          id: "pw-weak-hash-multi",
+          pattern: /\b(hashlib\.(md5|sha1)|CryptoJS\.(MD5|SHA1)|MessageDigest\.getInstance\(\s*["'](MD5|SHA-1)["']\s*\)|MD5CryptoServiceProvider|SHA1CryptoServiceProvider)\b/i,
+          message: "Weak hashing algorithm (MD5/SHA-1) used for passwords.",
+          applies: { method: "password" },
+          hint: "Use Argon2id, bcrypt, or PBKDF2 with high iterations."
+        },
+        {
+          id: "pw-base64-instead-of-hash",
+          pattern: /\b(base64\.(b64encode|encode)|Buffer\.from\([^)]*\)\.toString\(['"]base64['"]\))/i,
+          message: "Base64 encoding used instead of a password hash.",
+          applies: { method: "password" },
+          hint: "Base64 is reversible; use a password hashing function."
+        },
+
+        // OTP
+        {
+          id: "otp-hardcoded",
+          pattern: /\botp\s*[:=]\s*["'`]\d{4,8}["'`]/i,
+          message: "Static/hardcoded OTP detected.",
+          applies: { method: "otp" },
+          hint: "Generate TOTP or random OTP per request with expiry."
+        },
+        {
+          id: "otp-logged-to-console",
+          pattern: /\b(console\.log|print|echo)\s*\(\s*[^)]*(\botp\b|your\s+otp|otp\s+is|otp:)/i,
+          message: "OTP value logged or printed.",
+          applies: { method: "otp" },
+          hint: "Never log OTPs; treat as secrets and expire quickly."
+        },
+        {
+          id: "otp-compare-no-expiry",
+          pattern: /\botp\b[\s\S]{0,80}(==|===|equals)\s*\w+(?![\s\S]{0,200}(expire|expiry|ttl|timeout|totp|window))/i,
+          message: "OTP comparison without explicit expiry/time window.",
+          applies: { method: "otp" },
+          hint: "Use TOTP libraries that enforce a short time window."
+        },
+        {
+          id: "otp-predictable-time-mod",
+          pattern: /\btime(\.time)?\(\)\s*[%/]\s*\d{3,6}|\brandom\.\s*(randrange|randint)\s*\(\s*0\s*,\s*\d{3,6}\s*\)/i,
+          message: "Predictable OTP derived from time or small numeric range.",
+          applies: { method: "otp" },
+          hint: "Use cryptographically secure RNG or TOTP."
+        },
+        {
+          id: "otp-insecure-delivery-email",
+          pattern: /\bmail\s*\([^)]*(otp|one\s*time\s*password|verification\s*code)[^)]*\)/i,
+          message: "OTP sent via potentially insecure plain email.",
+          applies: { method: "otp" },
+          hint: "Send via secure channels and avoid including secrets in plain content."
+        },
+
+        // OAUTH2
+        {
+          id: "oauth-hardcoded-secret",
+          pattern: /\b(client[_-]?secret|consumer[_-]?secret)\s*[:=]\s*["'`][^"'`]{6,}["'`]/i,
+          message: "Hardcoded OAuth client secret.",
+          applies: { method: "oauth2" },
+          hint: "Load secrets from a secure vault/env; rotate regularly."
+        },
+        {
+          id: "oauth-secret-in-url",
+          pattern: /(https?:\/\/[^\s'"]+\?(?:[^"'#]*&)?(?:client[_-]?secret|access[_-]?token|refresh[_-]?token)=)/i,
+          message: "Secret or token present in URL query string.",
+          applies: { method: "oauth2" },
+          hint: "Use POST body or Authorization header; avoid URLs for secrets."
+        },
+        {
+          id: "oauth-token-endpoint-get",
+          pattern: /\b(fetch|axios\.(get|request)|requests\.get|curl\s+-G)\b[\s\S]{0,140}\/token(\b|[/?#])/i,
+          message: "Token endpoint called with GET.",
+          applies: { method: "oauth2" },
+          hint: "Use POST for token exchange, not GET."
+        },
+        {
+          id: "oauth-insecure-redirect-uri",
+          pattern: /redirect[_-]?uri\s*[:=]\s*["'`](http:\/\/)[^"'`]+["'`]/i,
+          message: "Insecure (HTTP) redirect_uri.",
+          applies: { method: "oauth2" },
+          hint: "Use HTTPS redirect URIs."
+        },
+        {
+          id: "oauth-open-redirect",
+          pattern: /\bredirect\s*\(\s*(redirect[_-]?uri|returnUrl|next|url|target|to)\s*\)|window\.location(\.href)?\s*=\s*(redirect[_-]?uri|returnUrl|next|url|target|to)\b/i,
+          message: "Open redirect: unvalidated user-controlled redirect.",
+          applies: { method: "oauth2" },
+          hint: "Validate against an allowlist of redirect URIs."
+        },
+        {
+          id: "oauth-implicit-flow",
+          pattern: /authorize\?[^"'#]*(response_type=(token|id_token))/i,
+          message: "Implicit flow requested (tokens in URL).",
+          applies: { method: "oauth2" },
+          hint: "Prefer Authorization Code + PKCE; avoid tokens in URLs."
+        },
+
+        // JWT
+        {
+          id: "jwt-decode-no-verify-js",
+          pattern: /\bjwt\.(decode|decodeUnsafe)\s*\(\s*[\w.]+\s*(?:,[^)]*)?\)\s*;?/i,
+          message: "JWT decoded without signature verification.",
+          applies: { method: "jwt", languages: ["javascript"] },
+          hint: "Use jwt.verify(token, key, { algorithms: [...] })."
+        },
+        {
+          id: "jwt-none-alg",
+          pattern: /"alg"\s*:\s*"none"|algorithms?\s*[:=]\s*\[\s*["']none["']\s*\]/i,
+          message: "JWT configured to allow 'none' algorithm.",
+          applies: { method: "jwt" },
+          hint: "Disallow 'none'; specify strong algorithms explicitly."
+        },
+        {
+          id: "jwt-py-no-alg-list",
+          pattern: /\bjwt\.decode\s*\(\s*[^,]+,\s*[^,)\n]+(\))\s*$/im,
+          message: "PyJWT decode without specifying allowed algorithms.",
+          applies: { method: "jwt", languages: ["python"] },
+          hint: "Pass algorithms=[...] and verify claims."
+        },
+        {
+          id: "jwt-manual-parse-no-verify",
+          pattern: /atob\(\s*token\.split\(\s*['"]\.[)'"]\s*\)\[1\]\s*\)|Buffer\.from\(\s*token\.split\(['"]\.[)'"]\)\[1\][^)]*\)/i,
+          message: "JWT payload parsed manually without verification.",
+          applies: { method: "jwt" },
+          hint: "Never trust decoded payload unless verify() succeeds."
+        },
+        {
+          id: "jwt-weak-secret-short-literal",
+          pattern: /\bjwt\.sign\s*\(\s*\{[^}]*\}\s*,\s*["'`][^"'`]{1,8}["'`]\s*[),]/i,
+          message: "JWT signed with an extremely weak secret literal.",
+          applies: { method: "jwt", languages: ["javascript"] },
+          hint: "Use long random secrets (>=32 bytes) or asymmetric keys."
+        },
+
+        // SESSION COOKIES
+        {
+          id: "sess-php-cookie-no-flags",
+          pattern: /setcookie\s*\([^)]*\)(?![\s\S]{0,200}(httponly|secure|samesite))/i,
+          message: "Cookie set without HttpOnly/Secure/SameSite flags (PHP).",
+          applies: { method: "session", languages: ["php"] },
+          hint: "Set HttpOnly, Secure, SameSite=strict/lax and use HTTPS."
+        },
+        {
+          id: "sess-express-cookie-no-flags",
+          pattern: /res\.cookie\s*\(\s*['"][^'"]+['"]\s*,\s*[^,]+(\s*,\s*\{[^}]*\})?\s*\)(?![\s\S]{0,200}(httpOnly|secure|sameSite))/i,
+          message: "Express cookie set without httpOnly/secure/SameSite options.",
+          applies: { method: "session", languages: ["javascript"] },
+          hint: "Use res.cookie(name, val, { httpOnly: true, secure: true, sameSite: 'lax' })."
+        },
+        {
+          id: "sess-express-session-weak",
+          pattern: /express-session[\s\S]{0,200}session\s*\(\s*\{[\s\S]{0,400}cookie\s*:\s*\{(?![\s\S]{0,200}(httpOnly|secure|sameSite))[\s\S]{0,400}\}\s*\}\s*\)/i,
+          message: "express-session cookie options missing security flags.",
+          applies: { method: "session", languages: ["javascript"] },
+          hint: "Set cookie: { httpOnly: true, secure: true, sameSite: 'lax' }."
+        },
+        {
+          id: "sess-document-cookie",
+          pattern: /document\.cookie\s*=\s*["'`][^"'`]+["'`]/i,
+          message: "Client-side cookie assignment (no HttpOnly).",
+          applies: { method: "session", languages: ["javascript"] },
+          hint: "Set cookies server-side with HttpOnly and Secure."
+        },
+        {
+          id: "sess-fixation-node",
+          pattern: /req\.session\.\w+\s*=\s*.+;(?![\s\S]{0,200}regenerate\()/i,
+          message: "Session data set without session ID regeneration (possible fixation).",
+          applies: { method: "session", languages: ["javascript"] },
+          hint: "Call req.session.regenerate() on login."
+        },
+        {
+          id: "sess-fixation-php",
+          pattern: /\$_SESSION\[[^\]]+\]\s*=\s*.+;(?![\s\S]{0,200}session_regenerate_id\s*\()/i,
+          message: "PHP session set without session_regenerate_id(true).",
+          applies: { method: "session", languages: ["php"] },
+          hint: "Regenerate session ID on login/privilege change."
+        },
+        {
+          id: "sess-fixation-java",
+          pattern: /getSession\(\s*false?\s*\)\.setAttribute\(/i,
+          message: "Java session attribute set on existing session (fixation risk).",
+          applies: { method: "session", languages: ["java"] },
+          hint: "Invalidate and start a new session after login."
+        },
+        {
+          id: "sess-fixation-python",
+          pattern: /session\[[^\]]+\]\s*=\s*.+(?![\s\S]{0,200}(regenerat|rotate|clear\(\)))/i,
+          message: "Session mutation without rotation/clear (Flask/Django).",
+          applies: { method: "session", languages: ["python"] },
+          hint: "Rotate/clear session identifier on login."
+        },
+        {
+          id: "sess-infinite-lifetime-php",
+          pattern: /ini_set\s*\(\s*["']session\.gc_maxlifetime["']\s*,\s*(0|[5-9]\d{3,})\s*\)/i,
+          message: "Extremely long or infinite PHP session lifetime.",
+          applies: { method: "session", languages: ["php"] },
+          hint: "Use short lifetimes and absolute/idle timeouts."
+        },
+
+        // TOKEN HANDLING
+        {
+          id: "token-in-query-param",
+          pattern: /\?(?:[^#\s'"&]*&)*(access[_-]?token|id[_-]?token|refresh[_-]?token)=/i,
+          message: "Access/ID/refresh token passed in URL query.",
+          applies: { method: "oauth2" },
+          hint: "Send tokens in Authorization header, not in URLs."
+        },
+        {
+          id: "token-in-localstorage",
+          pattern: /\blocalStorage\.(setItem|getItem)\s*\(\s*['"](token|access[_-]?token|id[_-]?token)['"]/i,
+          message: "Token stored in localStorage (XSS-exposed).",
+          applies: { method: "jwt" },
+          hint: "Prefer HttpOnly, Secure cookies with SameSite."
+        }
+      ];
+
+      function normalizeCode(code) {
+        return code
+          .replace(/\/\/.*$/gm, "")         // JS/C# single-line
+          .replace(/#.*$/gm, "")            // Python single-line
+          .replace(/\/\*[\s\S]*?\*\//g, "") // JS/Java/C# block comments
+          .replace(/--.*$/gm, "")           // SQL-style
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      function detectIssues(rawCode, method, language) {
+        const code = normalizeCode(rawCode);
+        const found = [];
+        for (const rule of vulnerabilityRules) {
+          if (rule.applies && rule.applies.method && rule.applies.method !== method) continue;
+          if (rule.applies && rule.applies.languages && !rule.applies.languages.includes(language)) continue;
+          try {
+            const rx = new RegExp(rule.pattern);
+            if (rx.test(code)) found.push(rule);
+          } catch (e) {}
+        }
+        return found;
+      }
+
+      function renderFindings(findings) {
+        if (!findings.length) return null;
+        let html = "❌ <strong>Insecure:</strong>\n";
+        html += "<ul style='margin:8px 0 0 18px; padding-left:0;'>";
+        findings.forEach(f => {
+          html += `<li>${f.message}${f.hint ? ` <em style="color:#7b1c1c;display:block;margin-top:4px;">Fix: ${f.hint}</em>` : ""}</li>`;
+        });
+        html += "</ul>";
+        return html;
+      }
+
+      function defaultSecureMessage(method) {
+        const map = {
+          password: "Use bcrypt/Argon2 and verify using hashes; enforce policies and rate-limit logins.",
+          otp: "Use TOTP with short windows, secure secret storage, replay protection, and lockouts.",
+          oauth2: "Use POST for token exchange, validate via introspection/JWKS, enforce scopes and HTTPS.",
+          jwt: "Always verify signature and claims with an allow-listed algorithm; avoid 'none' and localStorage.",
+          session: "Regenerate session ID on login, set HttpOnly/Secure/SameSite, short timeouts, HTTPS only."
+        };
+        return map[method] || "Follow the recommended secure patterns for this method.";
+      }
+
+      function clearAll() {
+        codeArea.value = "";
+        insecurePanel.innerHTML = '❌ <strong>Insecure:</strong> (results will appear here)';
+        securePanel.innerHTML = '✅ <strong>Secure:</strong> (suggestions will appear here)';
+        explanationP.textContent = "Explanation will appear here in plain, student-friendly English.";
+        statusPill.textContent = "Ready";
+      }
+
+      function checkUserCode() {
+        let code = codeArea.value.trim();
+        if (!code) {
+          clearAll();
+          return;
+        }
+        statusPill.textContent = "Analyzing…";
+        const method = methodSelect.value;
+        const language = languageSelect.value;
+
+        const findings = detectIssues(code, method, language);
+
+        if (findings.length) {
+          insecurePanel.innerHTML = renderFindings(findings) || "❌ Issues detected.";
+          securePanel.innerHTML = `✅ <strong>Secure:</strong><pre>${defaultSecureMessage(method)}</pre>`;
+          explanationP.innerHTML = (explanations[method]?.insecure || "") + "<br>" + (explanations[method]?.secure || "");
+          statusPill.textContent = "Review issues";
+          return;
+        }
+
+        // Fallback to sample-based detection
+        const methodSamples = samples[method] && samples[method][language];
+        if (methodSamples) {
+          const normalize = str => str.replace(/\s/g, '').toLowerCase();
+          if (normalize(code).includes(normalize(methodSamples.vulnerable).slice(0, 40))) {
+            insecurePanel.innerHTML = `❌ <strong>Insecure:</strong><pre>${escapeHtml(methodSamples.vulnerable)}</pre>`;
+            securePanel.innerHTML = `✅ <strong>Secure:</strong><pre>${escapeHtml(methodSamples.secure)}</pre>`;
+            explanationP.innerHTML = (explanations[method]?.insecure || "") + "<br>" + (explanations[method]?.secure || "");
+            statusPill.textContent = "Review issues";
+            return;
+          }
+        }
+
+        // No issues found
+        insecurePanel.textContent = "No obvious authentication vulnerabilities found.";
+        securePanel.textContent = "Good job! Authentication handling appears secure.";
+        explanationP.textContent = "Proper authentication protects the application from unauthorized access.";
+        statusPill.textContent = "Looks good";
+      }
+
+      function loadSample() {
+        const method = methodSelect.value;
+        const language = languageSelect.value;
+        const methodSamples = samples[method] && samples[method][language];
+        if (!methodSamples) {
+          alert("Sample code not available for this selection.");
+          return;
+        }
+        codeArea.value = methodSamples.vulnerable;
+        insecurePanel.innerHTML = `❌ <strong>Insecure:</strong><pre>${escapeHtml(methodSamples.vulnerable)}</pre>`;
+        securePanel.innerHTML = `✅ <strong>Secure:</strong><pre>${escapeHtml(methodSamples.secure)}</pre>`;
+        explanationP.innerHTML = (explanations[method]?.insecure || "") + "<br>" + (explanations[method]?.secure || "");
+        statusPill.textContent = "Sample loaded";
+      }
+
+      function escapeHtml(s){
+        return String(s)
+          .replaceAll("&","&amp;")
+          .replaceAll("<","&lt;")
+          .replaceAll(">","&gt;");
+      }
+
+      // Wire buttons
+      sampleBtn.onclick = () => loadSample();
+      clearBtn.onclick = () => clearAll();
+      testBtn.onclick = () => checkUserCode();
+      methodSelect.onchange = () => clearAll();
+      languageSelect.onchange = () => clearAll();
+
+      // Init default state
+      clearAll();
+    }
+
+    window.addEventListener('DOMContentLoaded', initAuthenticationModule);
+  </script>
+<a href="/dashboard" class="dash-btn">← Dashboard</a>
+</body>
+</html>

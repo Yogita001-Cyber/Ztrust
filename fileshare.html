@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ZTrust File Sharing</title>
+  <style>
+    :root{
+      --sidebar-bg:#595959; --sidebar-chip:#3c3c3c; --tile-hover:#c69b6b;
+      --border:#dcdcdc; --panel:#f9f9f9; --text:#333;
+    }
+    *{ box-sizing:border-box; font-family:"Segoe UI",sans-serif; }
+    html,body{ height:100%; }
+    body{ margin:0; background:#f5f5f5; display:flex; justify-content:center; align-items:center; }
+
+    .shell{
+      width:92vw; max-width:1400px; height:86vh; min-height:640px;
+      background:#fff; border-radius:16px; overflow:hidden;
+      box-shadow:0 8px 24px rgba(0,0,0,.10);
+      display:grid; grid-template-columns:300px 1fr;
+    }
+
+    /* Sidebar */
+    .sidebar{ background:var(--sidebar-bg); color:#fff; display:grid; grid-template-rows:auto 1fr auto; }
+    .sidebar-header{ padding:22px 20px; border-bottom:1px solid rgba(255,255,255,.08); font-size:22px; font-weight:700; text-align:center; letter-spacing:.5px; }
+    .sidebar-list{ padding:14px 14px 120px 14px; overflow-y:auto; }
+    .user-tile{ background:#777; border-radius:10px; padding:12px 14px; margin:10px 0; cursor:pointer; transition:.2s; font-size:14px; }
+    .user-tile:hover,.user-tile.selected{ background:var(--tile-hover); color:#fff; font-weight:600; }
+
+    /* Current user chip + dropdown */
+    .me-wrap{ position:sticky; bottom:0; margin:12px; }
+    .me-chip{
+      background:#3c3c3c; color:#fff; border-radius:10px; padding:10px 12px;
+      display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,.15); cursor:pointer; user-select:none;
+    }
+    .me-dot{ width:8px; height:8px; border-radius:50%; background:#b58df0; display:inline-block; }
+    .me-name{ font-weight:700; font-size:14px; }
+    .me-caret{ margin-left:auto; opacity:.9; font-size:12px; transition:.15s ease; }
+    .me-caret.open{ transform:rotate(180deg); }
+    .me-dropdown{ display:none; margin-top:8px; background:#484848; color:#fff; border-radius:10px; padding:12px; box-shadow:0 6px 18px rgba(0,0,0,.28); }
+    .me-row{ font-size:14px; margin:0 0 10px 0; opacity:.95; }
+
+    /* Actions row: force buttons into one line, equal width and height */
+    .me-actions{
+      display:flex;
+      gap:8px;
+      margin-top:10px;
+      align-items:stretch;   /* make children same height */
+    }
+    .me-actions a{
+      flex:1 1 0;            /* equal widths */
+      display:flex;          /* center text vertically */
+      align-items:center;
+      justify-content:center;
+      min-height:38px;       /* uniform height */
+      background:var(--tile-hover);
+      color:#fff;
+      padding:8px 10px;
+      border-radius:8px;
+      text-decoration:none;
+      font-weight:600;
+      font-size:13px;
+      white-space:nowrap;    /* keep labels on one line */
+    }
+    .me-actions a:hover{ background:#ad8355; }
+
+    /* Main */
+    .main{ 
+      display:grid; 
+      grid-template-rows:auto auto 1fr auto; /* header | sub | history | composer */
+      height:100%; 
+      overflow:hidden; /* stop whole thing from scrolling */
+    }
+    .header{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 16px; background:#eee; border-bottom:1px solid var(--border); font-weight:600;
+    }
+    .right-status{ font-size:12px; padding:4px 8px; border-radius:8px; background:#c5f7c5; color:#1b531b; }
+    .sub{
+      padding:10px 16px; border-bottom:1px solid var(--border); color:#666; font-size:14px;
+    }
+    .sub strong{ color:#222; }
+
+    /* History panel */
+    .panel{ 
+      background:#fff; 
+      padding:0 16px 8px 16px; 
+      overflow-y:auto; 
+      min-height:0;   /* ✅ allow scroll inside grid */
+    }
+    .empty-hint{
+      margin: 18px 0 6px 0; padding: 16px; border: 1px dashed #ddd; border-radius: 10px; color:#555; text-align:center;
+    }
+
+    /* Equal-width grid table (7 columns) */
+    #historyTable{ width:100%; border-collapse:collapse; }
+    #historyTable thead tr,
+    #historyTable tbody tr{
+      display:grid;
+      grid-template-columns: 1.2fr 1.2fr 2fr 1fr 1fr 1.2fr 1fr;
+      align-items:center;
+    }
+    #historyTable th, #historyTable td{
+      border-bottom:1px solid #eee;
+      padding:10px;
+      text-align:left;
+      font-size:14px;
+    }
+    #historyTable th{ background:#fafafa; font-weight:700; }
+
+    .dl{ padding:6px 10px; background:#e9e9e9; color:#333; border-radius:8px; text-decoration:none; cursor:pointer; }
+    .dl:hover{ background:#dcdcdc; }
+
+    /* Composer */
+    .fs-composer{
+      position: relative;
+      padding: 16px;
+      padding-bottom: 28px;
+      background: #fff;
+      border-top: 1px solid var(--border);
+    }
+
+    .fs-drop{
+      border: 2px dashed #d3d3d3;
+      border-radius: 12px;
+      background: #fff;
+      min-height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .fs-center{
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 18px;
+      width: 100%;
+      max-width: 760px;
+    }
+    .fs-title{ color: #222; font-size: 16px; text-align: center; }
+
+    .fs-choose-row{ display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .fs-choose{
+      display: inline-block; background: #c69b6b; color: #fff; padding: 10px 18px; border-radius: 10px;
+      font-weight: 600; cursor: pointer; user-select: none; transition: background .15s ease;
+    }
+    .fs-choose:hover{ background: #ad8355; }
+    .fs-choose input[type="file"]{ display:none; }
+    .fs-filename{ color:#555; font-size: 14px; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .fs-send{
+      position: absolute;
+      right: 24px;
+      bottom: 35px;
+      background: #c69b6b; color: #fff; border: none; border-radius: 12px;
+      padding: 12px 22px; font-weight: 700; font-size: 16px; cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      transition: background .15s ease, transform .05s ease, opacity .15s ease;
+    }
+    .fs-send:hover{ background: #ad8355; }
+    .fs-send:active{ transform: translateY(1px); }
+    .fs-send:disabled{ opacity:.5; cursor:not-allowed; }
+
+    @media (max-width: 900px){
+      .fs-send{ position: static; margin-top: 12px; width: 100%; }
+      #historyTable thead tr, #historyTable tbody tr{
+        grid-template-columns: 1.2fr 1.2fr 2fr 1fr 1fr 1.2fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">USERS</div>
+      <div class="sidebar-list" id="userList">
+        {% for u in users %}
+          <div class="user-tile" data-id="{{ u.id }}" data-name="{{ u.name }}"
+               onclick="selectRecipient('{{ u.id }}','{{ u.name|e }}')">
+            {{ u.name }} ({{ u.email }})
+          </div>
+        {% endfor %}
+      </div>
+      <div class="me-wrap">
+        <div class="me-chip" id="meChip" data-id="{{ current_user.id }}">
+          <span class="me-dot"></span>
+          <span class="me-name">{{ current_user.name }}</span>
+          <span class="me-caret" id="meCaret">▾</span>
+        </div>
+        <div class="me-dropdown" id="meDropdown">
+          <div class="me-row">Name: {{ current_user.name }}</div>
+          <div class="me-row">Email: {{ current_user.email }}</div>
+          <div class="me-actions">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('chat') }}">Chat</a>
+            <a href="{{ url_for('logout') }}">Sign Out</a>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <section class="main">
+      <div class="header">
+        <span>Encrypted File Sharing</span>
+        <span class="right-status">Ready</span>
+      </div>
+      <div class="sub" id="subHint">Tip: select a recipient from the left sidebar.</div>
+
+      <!-- History panel -->
+      <div class="panel">
+        <div id="emptyHint" class="empty-hint">Select a user for file sharing.</div>
+        <table id="historyTable" style="display:none">
+          <thead>
+            <tr>
+              <th>From</th>
+              <th>To</th>
+              <th>File</th>
+              <th>Date</th>
+              <th>Time (IST)</th>
+              <th>File size</th>
+              <th>Download</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            {% for f in files %}
+            <tr data-sender="{{ f.sender_id }}" data-receiver="{{ f.receiver_id }}" data-size="{{ f.file_size }}">
+              <td class="from-name">—</td>
+              <td class="to-name">—</td>
+              <td>{{ f.original_filename }}</td>
+              <td>{{ f.date_str }}</td>
+              <td>{{ f.time_str }}</td>
+              <td class="size-human">—</td>
+              <td>
+                <a href="{{ url_for('download', filename=f.encrypted_filename) }}" 
+                   download="{{ f.original_filename }}" class="dl">Download</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Bottom composer -->
+      <div class="fs-composer">
+        <input type="hidden" id="peerIdHidden" value="">
+        <div class="fs-drop">
+          <div class="fs-center">
+            <div class="fs-title">Select files from Device</div>
+            <div class="fs-choose-row">
+              <label class="fs-choose">
+                <input id="fileInput" type="file" />
+                Choose File
+              </label>
+              <span id="fileName" class="fs-filename">No file chosen</span>
+            </div>
+          </div>
+        </div>
+        <button id="sendBtn" class="fs-send" type="button" onclick="sendFile()" disabled>Send</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const meChip = document.getElementById('meChip');
+      const meDropdown = document.getElementById('meDropdown');
+      const meCaret = document.getElementById('meCaret');
+      const peerIdHidden = document.getElementById('peerIdHidden');
+      const fileInput = document.getElementById('fileInput');
+      const fileNameEl = document.getElementById('fileName');
+      const sendBtn = document.getElementById('sendBtn');
+      const emptyHint = document.getElementById('emptyHint');
+      const historyTable = document.getElementById('historyTable');
+      const subHint = document.getElementById('subHint');
+
+      let currentPeerId = null;
+
+      function toggleMeDropdown(force){
+        const willOpen = force !== undefined ? force : (meDropdown.style.display !== 'block');
+        meDropdown.style.display = willOpen ? 'block' : 'none';
+        meCaret.classList.toggle('open', willOpen);
+      }
+      meChip?.addEventListener('click', (e)=>{ e.stopPropagation(); toggleMeDropdown(); });
+      document.addEventListener('click', (e)=>{
+        if (!meDropdown.contains(e.target) && !meChip.contains(e.target)) toggleMeDropdown(false);
+      });
+
+      function updateSendState(){
+        const hasPeer = !!currentPeerId;
+        const hasFile = !!(fileInput && fileInput.files && fileInput.files[0]);
+        sendBtn.disabled = !(hasPeer && hasFile);
+      }
+
+      function filterHistoryForPeer(peerId){
+        const meId = meChip ? meChip.getAttribute('data-id') : null;
+        if (!meId) return;
+        if (emptyHint) emptyHint.style.display = 'none';
+        if (historyTable) historyTable.style.display = 'table';
+
+        document.querySelectorAll('#historyBody tr').forEach(row => {
+          const sid = row.getAttribute('data-sender');
+          const rid = row.getAttribute('data-receiver');
+          const match = (sid === meId && rid === peerId) || (sid === peerId && rid === meId);
+          row.style.display = match ? '' : 'none';
+        });
+      }
+
+      window.selectRecipient = function(id, name){
+        currentPeerId = id;
+        peerIdHidden.value = id;
+        subHint.innerHTML = '<strong>Recipient:</strong> ' + name;
+
+        document.querySelectorAll('.user-tile').forEach(n => n.classList.remove('selected'));
+        const tile = document.querySelector(`.user-tile[data-id="${id}"]`);
+        tile?.classList.add('selected');
+
+        emptyHint.style.display = 'none';
+        historyTable.style.display = 'table';
+
+        filterHistoryForPeer(id);
+
+        sessionStorage.setItem("lastPeerId", id);
+        sessionStorage.setItem("lastPeerName", name);
+
+        updateSendState();
+      };
+
+      const lastPeerId = sessionStorage.getItem("lastPeerId");
+      const lastPeerName = sessionStorage.getItem("lastPeerName");
+      if(lastPeerId && lastPeerName){
+        selectRecipient(lastPeerId, lastPeerName);
+      }
+
+      fileInput?.addEventListener('change', ()=>{
+        const f = fileInput.files && fileInput.files[0];
+        fileNameEl.textContent = f ? f.name : 'No file chosen';
+        updateSendState();
+      });
+
+      window.sendFile = async function(){
+        const pid = (peerIdHidden?.value || '').trim();
+        if (!pid){
+          alert('Please select a recipient from the left.');
+          return;
+        }
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0){
+          alert('Please choose a file.');
+          return;
+        }
+
+        const f = fileInput.files[0];
+        const fd = new FormData();
+        fd.append('peer_id', pid);
+        fd.append('file', f);
+
+        try{
+          sendBtn.disabled = true;
+          const r = await fetch('/api/upload', { method:'POST', body: fd });
+          if (r.status === 403) {
+            window.location = '{{ url_for("unlock_page", next="fileshare") }}';
+            return;
+          }
+          let j = null;
+          try { j = await r.json(); } catch (_e) {
+            const text = await r.text();
+            alert('Upload failed: ' + (text || ('HTTP ' + r.status)));
+            sendBtn.disabled = false;
+            return;
+          }
+          if (j && j.success){
+            fileInput.value = "";
+            fileNameEl.textContent = "No file chosen";
+            updateSendState();
+            window.location.reload();
+          } else {
+            alert(j.message || 'Failed to upload.');
+          }
+        }catch(e){
+          alert('Network error during upload.');
+        }finally{
+          updateSendState();
+        }
+      };
+
+      (function enhanceNamesAndSizes(){
+        const userMap = {};
+        document.querySelectorAll('#userList .user-tile').forEach(t => {
+          const id = t.getAttribute('data-id');
+          const name = t.getAttribute('data-name') || t.textContent.trim();
+          if (id) userMap[id] = name;
+        });
+
+        const meNameEl = meChip ? meChip.querySelector('.me-name') : null;
+        const meId = meChip ? meChip.getAttribute('data-id') : null;
+        const meName = meNameEl ? meNameEl.textContent.trim() : '';
+        if (meId && meName) userMap[meId] = meName;
+
+        function humanSize(bytes) {
+          const b = Number(bytes) || 0;
+          if (b < 1024) return b + ' B';
+          const kb = b / 1024;
+          if (kb < 1024) return (kb < 10 ? kb.toFixed(2) : kb < 100 ? kb.toFixed(1) : Math.round(kb)) + ' KB';
+          const mb = kb / 1024;
+          return (mb < 10 ? mb.toFixed(2) : mb < 100 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
+        }
+
+        document.querySelectorAll('#historyBody tr').forEach(row => {
+          const sid = row.getAttribute('data-sender');
+          const rid = row.getAttribute('data-receiver');
+          const size = row.getAttribute('data-size');
+
+          const fromCell = row.querySelector('.from-name');
+          const toCell = row.querySelector('.to-name');
+          const sizeCell = row.querySelector('.size-human');
+
+          if (fromCell) fromCell.textContent = userMap[sid] || sid || '—';
+          if (toCell) toCell.textContent = userMap[rid] || rid || '—';
+          if (sizeCell) sizeCell.textContent = humanSize(size);
+        });
+      })();
+    });
+  </script>
+</body>
+</html>

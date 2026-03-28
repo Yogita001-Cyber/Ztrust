@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ZTrust Login/Signup</title>
+  <style>
+    :root { --form-bg:#fff; --overlay-bg:#666; --button-color:#d4ad7f; --input-bg:#f5f5f5; --text-dark:#333; --text-light:#fff; --border-color:#ccc; }
+    *{ box-sizing:border-box; margin:0; padding:0; font-family:'Open Sans',sans-serif; }
+    body{ background:var(--form-bg); display:flex; justify-content:center; align-items:center; min-height:100vh; }
+    .container{ background:var(--form-bg); border-radius:10px; box-shadow:0 14px 28px rgba(0,0,0,.25),0 10px 10px rgba(0,0,0,.22); position:relative; overflow:hidden; width:1000px; max-width:100%; min-height:560px; display:flex; align-items:stretch; }
+
+    .form-container{ position:absolute; top:0; height:100%; transition:all .6s ease-in-out; width:50%; }
+    .sign-in-container{ left:0; z-index:2; }
+    .sign-up-container{ left:0; opacity:0; z-index:1; }
+    .container.right-panel-active .sign-in-container{ transform:translateX(100%); }
+    .container.right-panel-active .sign-up-container{ transform:translateX(100%); opacity:1; z-index:5; }
+
+    .sign-up-container form{ min-width:420px; }
+    form{ background:var(--form-bg); display:flex; flex-direction:column; padding:0 50px; justify-content:center; height:100%; text-align:center; }
+    h1{ font-weight:bold; margin-bottom:10px; color:var(--text-dark); }
+
+    input{ background:transparent; border:none; border-bottom:1px solid var(--border-color); padding:12px; margin:10px 0; width:100%; font-size:14px; color:var(--text-dark); }
+    input:focus{ outline:none; border-bottom:1px solid var(--button-color); }
+    button{ border-radius:50px; border:none; padding:12px 45px; background:var(--button-color); color:#fff; font-size:14px; font-weight:bold; letter-spacing:1px; margin-top:10px; transition:background-color .3s ease; cursor:pointer; }
+    button:hover{ background:#c1996b; }
+    button.ghost{ background:transparent; border:1px solid #fff; color:#fff; }
+
+    .overlay-container{ position:absolute; top:0; left:50%; width:50%; height:100%; overflow:hidden; transition:transform .6s ease-in-out; z-index:100; }
+    .container.right-panel-active .overlay-container{ transform:translateX(-100%); }
+    .overlay{ background:var(--overlay-bg); color:var(--text-light); position:relative; left:-100%; height:100%; width:200%; transform:translateX(0); transition:transform .6s ease-in-out; }
+    .container.right-panel-active .overlay{ transform:translateX(50%); }
+    .overlay-panel{ position:absolute; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:0 40px; text-align:center; top:0; height:100%; width:50%; transform:translateX(0); transition:transform .6s ease-in-out; }
+    .overlay-left{ transform:translateX(-20%); }
+    .container.right-panel-active .overlay-left{ transform:translateX(0); }
+    .overlay-right{ right:0; transform:translateX(0); }
+    .container.right-panel-active .overlay-right{ transform:translateX(20%); }
+
+    .otp-container{ display:flex; justify-content:center; gap:10px; margin-top:5px; }
+    .otp-container input{ width:35px; height:40px; text-align:center; font-size:18px; border:1px solid #ccc; border-radius:5px; }
+    .otp-label{ margin-top:15px; font-size:14px; color:var(--text-dark); }
+    .msg{ margin-top:10px; font-size:13px; color:#c03; min-height:18px; }
+    .ok{ color:#0a7; }
+
+    /* flash area */
+    .flashes{ margin:10px 0; }
+    .flash{ background:#fff3cd; color:#664d03; border:1px solid #ffecb5; padding:10px 12px; border-radius:8px; margin:6px 50px; text-align:center; }
+
+    /* Keys presentation */
+    .keys-wrap { max-height: 240px; overflow: auto; background: #f7f7f7; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; margin-top: 12px; text-align: left; }
+    .keys-title { font-size:13px; color:#444; margin-bottom:8px; }
+    .keys-pre { margin:0; white-space:pre-wrap; word-break:break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:12px; line-height:1.35; }
+    .keys-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+    .btn-small { padding:8px 12px; border-radius:6px; border:1px solid #d9d9d9; background:#fff; color:#333; cursor:pointer; }
+    .btn-small:hover { background:#f2f2f2; }
+    .key-section { margin-bottom:12px; }
+    .key-private .keys-pre.hidden { filter: blur(6px); }
+
+    @media (max-width:768px){
+      body{ min-height:auto; }
+      .container{ width:100%; min-height:740px; flex-direction:column; border-radius:0; }
+      .form-container,.overlay-container{ width:100%!important; left:0!important; }
+      .overlay{ display:none; }
+      .sign-up-container form{ min-width:auto; padding:20px; }
+      form{ padding:20px; }
+      .flash{ margin:6px 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="container">
+    <!-- Flash messages from server (capacity reached, domain not allowed, etc.) -->
+    <div class="flashes">
+      {% for message in get_flashed_messages() %}
+        <div class="flash">{{ message }}</div>
+      {% endfor %}
+    </div>
+
+    <!-- SIGN UP -->
+    <div class="form-container sign-up-container">
+      <form id="signup-form" autocomplete="off">
+        <h1>Create Account</h1>
+        <input name="name" type="text" placeholder="Name" required />
+        <input name="email" type="email" placeholder="Email" required />
+        <input name="password" type="password" placeholder="Password" required />
+
+        <div class="otp-label">Enter OTP (after requesting)</div>
+        <div class="otp-container" aria-label="OTP inputs">
+          <input class="otp" type="text" maxlength="1" inputmode="numeric" />
+          <input class="otp" type="text" maxlength="1" inputmode="numeric" />
+          <input class="otp" type="text" maxlength="1" inputmode="numeric" />
+          <input class="otp" type="text" maxlength="1" inputmode="numeric" />
+          <input class="otp" type="text" maxlength="1" inputmode="numeric" />
+          <input class="otp" type="text" maxlength="1" inputmode="numeric" />
+        </div>
+
+        <button type="button" id="btn-signup-send">Send OTP</button>
+        <button type="submit" id="btn-signup-verify" disabled>Verify & Create</button>
+        <div id="signup-msg" class="msg" role="status" aria-live="polite"></div>
+
+        <!-- Keys block (hidden by default) -->
+        <div id="signup-keys" style="display:none;">
+          <div class="keys-wrap">
+            <div class="keys-title">
+              Save these keys now (they will not be shown again). Do not share your private key.
+            </div>
+
+            <div class="key-section key-public">
+              <strong style="font-size:13px;">PUBLIC KEY</strong>
+              <pre id="pub-pre" class="keys-pre"></pre>
+            </div>
+
+            <div class="key-section key-private">
+              <div style="display:flex; align-items:center; gap:10px; justify-content:space-between;">
+                <strong style="font-size:13px;">PRIVATE KEY</strong>
+                <button type="button" id="toggle-priv" class="btn-small" aria-pressed="true">Show</button>
+              </div>
+              <pre id="priv-pre" class="keys-pre hidden"></pre>
+            </div>
+
+            <div class="keys-actions">
+              <button type="button" id="copy-pub" class="btn-small">Copy Public</button>
+              <button type="button" id="copy-priv" class="btn-small">Copy Private</button>
+              <button type="button" id="dl-keys" class="btn-small">Download .txt</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- SIGN IN -->
+    <div class="form-container sign-in-container">
+      <form id="login-form" autocomplete="off">
+        <h1>Sign in to ZTrust !!</h1>
+        <input name="email" type="email" placeholder="Email" required />
+        <input name="password" type="password" placeholder="Password" required />
+
+        <div class="otp-label">Enter OTP (after requesting)</div>
+        <div class="otp-container" aria-label="OTP inputs">
+          <input class="otp" type="text" maxlength="1" inputmode="numeric" />
+          <input class="otp" type="text" maxlength="1" inputmode="numeric" />
+          <input class="otp" type="text" maxlength="1" inputmode="numeric" />
+          <input class="otp" type="text" maxlength="1" inputmode="numeric" />
+          <input class="otp" type="text" maxlength="1" inputmode="numeric" />
+          <input class="otp" type="text" maxlength="1" inputmode="numeric" />
+        </div>
+
+        <button type="button" id="btn-login-send">Send OTP</button>
+        <button type="submit" id="btn-login-verify" disabled>Verify & Login</button>
+        <div id="login-msg" class="msg" role="status" aria-live="polite"></div>
+
+        <div class="otp-label" style="margin-top:14px; color:#666;">
+          After OTP success, login will continue to a short key confirmation step before the dashboard.
+        </div>
+      </form>
+    </div>
+
+    <!-- OVERLAY -->
+    <div class="overlay-container">
+      <div class="overlay">
+        <div class="overlay-panel overlay-left">
+          <h1>Welcome Back!</h1>
+          <p>To keep connected with us, please login!</p>
+          <button class="ghost" id="signIn">Login</button>
+        </div>
+        <div class="overlay-panel overlay-right">
+          <h1>Hello, Friend!</h1>
+          <p>Enter your details and start your journey with us!!</p>
+          <button class="ghost" id="signUp">Sign Up</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Panel toggling
+    const signUpButton = document.getElementById('signUp');
+    const signInButton = document.getElementById('signIn');
+    const container = document.getElementById('container');
+    if (signUpButton) signUpButton.addEventListener('click', () => container.classList.add('right-panel-active'));
+    if (signInButton) signInButton.addEventListener('click', () => container.classList.remove('right-panel-active'));
+
+    // Helpers
+    function getOtpFrom(form) {
+      return Array.from(form.querySelectorAll('.otp')).map(i => i.value.trim()).join('');
+    }
+    function showMsg(el, text, ok=false) {
+      el.textContent = text || '';
+      el.classList.toggle('ok', !!ok);
+    }
+    function enable(el, on=true){ if (el) el.disabled = !on; }
+
+    // Enable verify buttons only when 6 digits entered
+    function wireOtpEnable(formId, btnId){
+      const form = document.getElementById(formId);
+      const btn = document.getElementById(btnId);
+      if (!form || !btn) return;
+      const inputs = form.querySelectorAll('.otp');
+      const sync = () => enable(btn, getOtpFrom(form).length === 6);
+      inputs.forEach(i => i.addEventListener('input', sync));
+      sync();
+    }
+    wireOtpEnable('signup-form','btn-signup-verify');
+    wireOtpEnable('login-form','btn-login-verify');
+
+    // SIGNUP: Send OTP
+    document.getElementById('btn-signup-send')?.addEventListener('click', async (ev) => {
+      const form = document.getElementById('signup-form');
+      const name = form.name.value.trim();
+      const email = form.email.value.trim();
+      const password = form.password.value;
+      const msg = document.getElementById('signup-msg');
+
+      if (!name || !email || !password) { showMsg(msg, 'All fields required.'); return; }
+      enable(ev.target, false);
+      try {
+        const res = await fetch('/register', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ action: 'send_otp', name, email, password })
+        });
+        const j = await res.json();
+        showMsg(msg, j.message, j.success);
+      } catch {
+        showMsg(msg, 'Network error.');
+      } finally {
+        enable(ev.target, true);
+      }
+    });
+
+    // SIGNUP: Verify & Create
+    document.getElementById('signup-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const email = form.email.value.trim();
+      const otp_code = getOtpFrom(form);
+      const msg = document.getElementById('signup-msg');
+
+      if (!email || otp_code.length !== 6) { showMsg(msg, 'Enter the 6-digit OTP.'); return; }
+      enable(document.getElementById('btn-signup-verify'), false);
+      try {
+        const res = await fetch('/register', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ action: 'verify_otp', email, otp_code })
+        });
+        const j = await res.json();
+        showMsg(msg, j.message, j.success);
+        if (j.success) {
+          // Render keys nicely
+          const keysBox = document.getElementById('signup-keys');
+          const pubPre = document.getElementById('pub-pre');
+          const privPre = document.getElementById('priv-pre');
+          const toggleBtn = document.getElementById('toggle-priv');
+          const copyPub = document.getElementById('copy-pub');
+          const copyPriv = document.getElementById('copy-priv');
+          const dlKeys = document.getElementById('dl-keys');
+
+          pubPre.textContent = j.public_key || '';
+          privPre.textContent = j.private_key || '';
+          keysBox.style.display = 'block';
+
+          let hidden = true;
+          const setHidden = (on) => {
+            hidden = on;
+            if (hidden) { privPre.classList.add('hidden'); toggleBtn.textContent = 'Show'; toggleBtn.setAttribute('aria-pressed','false'); }
+            else { privPre.classList.remove('hidden'); toggleBtn.textContent = 'Hide'; toggleBtn.setAttribute('aria-pressed','true'); }
+          };
+          setHidden(true);
+          toggleBtn.onclick = () => setHidden(!hidden);
+
+          copyPub.onclick = async () => { try { await navigator.clipboard.writeText(pubPre.textContent); } catch {} };
+          copyPriv.onclick = async () => { try { await navigator.clipboard.writeText(privPre.textContent); } catch {} };
+          dlKeys.onclick = () => {
+            const blob = new Blob(['PUBLIC KEY:\n', pubPre.textContent, '\n\n', 'PRIVATE KEY:\n', privPre.textContent, '\n'], { type: 'text/plain;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'ztrust_keys.txt';
+            document.body.appendChild(a); a.click(); a.remove();
+          };
+        }
+      } catch {
+        showMsg(msg, 'Network error.');
+      } finally {
+        enable(document.getElementById('btn-signup-verify'), true);
+      }
+    });
+
+    // LOGIN: Send OTP
+    document.getElementById('btn-login-send')?.addEventListener('click', async (ev) => {
+      const form = document.getElementById('login-form');
+      const email = form.email.value.trim();
+      const password = form.password.value;
+      const msg = document.getElementById('login-msg');
+
+      if (!email || !password) { showMsg(msg, 'Email and password required.'); return; }
+      enable(ev.target, false);
+      try {
+        const res = await fetch('/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ action: 'send_otp', email, password })
+        });
+        const j = await res.json();
+        showMsg(msg, j.message, j.success);
+      } catch {
+        showMsg(msg, 'Network error.');
+      } finally {
+        enable(ev.target, true);
+      }
+    });
+
+    // LOGIN: Verify & Login -> server will redirect to /lock first
+    document.getElementById('login-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const email = form.email.value.trim();
+      const otp_code = getOtpFrom(form);
+      const msg = document.getElementById('login-msg');
+
+      if (!email || otp_code.length !== 6) { showMsg(msg, 'Enter the 6-digit OTP.'); return; }
+      enable(document.getElementById('btn-login-verify'), false);
+      try {
+        const res = await fetch('/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ action: 'verify_otp', email, otp_code })
+        });
+        const j = await res.json();
+        showMsg(msg, j.message, j.success);
+        if (j.success && j.redirect) { window.location = j.redirect; }
+      } catch {
+        showMsg(msg, 'Network error.');
+      } finally {
+        enable(document.getElementById('btn-login-verify'), true);
+      }
+    });
+
+    // OTP UX: auto-advance and backspace
+    document.querySelectorAll('.otp').forEach((input, idx, arr) => {
+      input.addEventListener('input', () => { if (input.value && idx < arr.length-1) arr[idx+1].focus(); });
+      input.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && !input.value && idx > 0) arr[idx-1].focus(); });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ZTrust - XSS Injection</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      /* Reusing input-validation.html theme tokens */
+      --sidebar-bg: #595959;
+      --tile-hover: #c69b6b;
+      --badge-ready: #c5f7c5;
+      --badge-ready-text: #1b531b;
+      --border: #dcdcdc;
+      --panel-bg: #f9f9f9;
+      --text: #333;
+    }
+    * { box-sizing: border-box; font-family: "Segoe UI", sans-serif; }
+    html, body { height: 100%; }
+    body { margin: 0; background: #f5f5f5; display: flex; justify-content: center; align-items: center; }
+
+    /* Shell mirrors input-validation.html: centered card with sidebar + main */
+    .app-shell {
+      width: 92vw; max-width: 1400px; height: 86vh; min-height: 640px;
+      background: #fff; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,.10);
+      display: grid; grid-template-columns: 300px 1fr;
+    }
+
+    /* Sidebar (same look as reference) */
+    .sidebar { background: var(--sidebar-bg); color: #fff; position: relative; display: grid; grid-template-rows: auto 1fr auto; }
+    .sidebar-header { padding: 22px 20px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 22px; font-weight: 700; text-align: center; letter-spacing: .5px; }
+    .sidebar-note { color: #f0e6e6; font-size: 13px; padding: 4px 6px 10px 6px; display: none; }
+    .sidebar-list { padding: 14px 14px 120px 14px; overflow-y: auto; }
+
+    .nav-tile { background: #777; border-radius: 10px; padding: 12px 14px; margin: 10px 0; cursor: pointer; transition: .2s; font-size: 14px; display: flex; justify-content: space-between; align-items: center; text-decoration: none; color: #fff; }
+    .nav-tile:hover, .nav-tile.active { background: var(--tile-hover); color: #fff; font-weight: 600; }
+    .me-dot { width: 8px; height: 8px; border-radius: 50%; background: #b58df0; display: inline-block; }
+    .me-name { font-weight: 700; font-size: 14px; }
+    .me-caret { margin-left: auto; opacity: .9; font-size: 12px; transition: .15s ease; }
+    .me-caret.open { transform: rotate(180deg); }
+    .me-row { font-size: 14px; margin: 0 0 10px 0; opacity: .95; }
+    .dash-btn{
+      position: absolute; left: 80px; bottom: 50px;
+      background: #C7A06A; color:#fff; text-decoration:none;
+      padding: 10px 90px; border-radius: 8px; font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1); z-index: 1000;
+    }
+    .dash-btn:hover{ background: #ad8355; }
+
+    /* Actions row inside dropdown */
+    .me-actions{
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+      margin-top: 10px;
+    }
+    .me-actions a{
+      flex: 1 1 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      background: var(--tile-hover);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .me-actions a:hover { background: #ad8355; }
+
+    @keyframes fadeIn { from{opacity:0; transform: translateY(-4px);} to{opacity:1; transform:none;} }
+
+    /* Main column header */
+    .main {
+      display: grid;
+      grid-template-rows: auto 1fr; /* header | content */
+      height: 100%;
+      min-height: 0;
+      background: #fff;
+    }
+    .main-header {
+      flex: 0 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; padding: 14px 16px; background: #eee; border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .status { font-size: 12px; padding: 4px 8px; border-radius: 8px; background: var(--badge-ready); color: var(--badge-ready-text); }
+
+    /* Content area styled like reference panel background */
+    .content {
+      min-height: 0;
+      overflow-y: auto;
+      background: var(--panel-bg);
+      padding: 16px;
+    }
+
+    /* Cards and titles */
+    .section-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      color: #222;
+      font-weight: 600;
+    }
+
+    /* Form controls */
+    label { font-weight: 600; display: block; margin-bottom: 6px; font-size: 14px; color: #2a3a59; }
+    select, textarea, input[type="text"] {
+      width: 100%;
+      background: #fff;
+      border: 1px solid #b0bec5;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #223344;
+      outline: none;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    select:focus, textarea:focus, input[type="text"]:focus {
+      border-color: #9aa8b0;
+      box-shadow: 0 0 0 3px rgba(198,155,107,0.22);
+    }
+    textarea {
+      min-height: 140px;
+      resize: vertical;
+      border-radius: 12px;
+      font-family: 'Fira Mono', 'Consolas', monospace;
+      line-height: 1.45;
+    }
+
+    /* Actions row */
+    .actions-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .btn {
+      background: var(--tile-hover);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s ease, opacity .15s ease, transform .05s ease;
+    }
+    .btn:hover { background: #a88450; }
+    .btn:active { transform: translateY(1px); }
+
+    .btn.warn { background: #C7A06A; }
+    .btn.warn:hover { background: #a88450; }
+    .btn.alt { background: #C7A06A; color: #fff; }
+    .btn.alt:hover { background: #a88450; }
+
+    /* Results section: two columns like reference */
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 16px;
+    }
+    .panel {
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 15px;
+      line-height: 1.45;
+      border: 1px solid transparent;
+      background: #fff;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .panel.insecure { background: #FFECEC; color: #C0392B; border-color: #E74C3C; }
+    .panel.secure { background: #E6F8EC; color: #1E8449; border-color: #27AE60; }
+
+    pre {
+      margin: 10px 0 0 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: rgba(0,0,0,0.03);
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .explain {
+      background: #F0F4F8;
+      border: 1px solid #333333;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 16px;
+      color: #2F4F4F;
+      line-height: 1.5;
+      font-size: 15px;
+    }
+
+    @media (max-width: 1080px) {
+      .app-shell { grid-template-columns: 260px 1fr; }
+    }
+    @media (max-width: 860px) {
+      .app-shell { width: 96vw; height: 92vh; grid-template-columns: 1fr; }
+      .result-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">MODULES</div>
+      <div class="sidebar-note" id="sidebarNote">Failed to load</div>
+
+      <div class="sidebar-list" id="navList">
+        <a class="nav-tile" href="input-validation.html">Input Validation</a>
+        <a class="nav-tile" href="authentication.html">Authentication</a>
+        <a class="nav-tile" href="sql-injection.html">SQL Injection</a>
+        <a class="nav-tile active" href="xss-injection.html">XSS Injection</a>
+        <a class="nav-tile" href="access-control.html">Access Control</a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="main-header">
+        <span>Secure Coding Toolkit — XSS Injection</span>
+        <span class="status" id="statusPill">Ready</span>
+      </div>
+
+      <div class="content">
+        <!-- Language and test input -->
+        <div class="section-card">
+          <h3 class="section-title">Run XSS Checks</h3>
+
+          <div style="display:grid; gap:12px; grid-template-columns: 220px 1fr;">
+            <div>
+              <label for="language-select">Language/Framework</label>
+              <select id="language-select">
+                <option value="javascript">JavaScript</option>
+                <option value="html">HTML</option>
+                <option value="angular">Angular</option>
+                <option value="react">React</option>
+                <option value="vue">Vue</option>
+              </select>
+            </div>
+            <div>
+              <label for="code-title">Snippet Title (optional)</label>
+              <input id="code-title" type="text" placeholder="e.g., Comment renderer snippet" />
+            </div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <label for="test-code">Test Code</label>
+            <textarea id="test-code" placeholder="// Paste your script, template, or code here..."></textarea>
+            <div class="actions-row">
+              <button id="test-code-btn" class="btn">Test my code</button>
+              <button id="clear-btn" class="btn warn">Clear</button>
+              <button id="load-sample-btn" class="btn alt">Load Sample</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="section-card">
+          <h3 class="section-title">Results</h3>
+          <div class="result-grid">
+            <div class="panel insecure" id="result-insecure">
+              ❌ <strong>Insecure:</strong> (results will appear here)
+            </div>
+            <div class="panel secure" id="result-secure">
+              ✅ <strong>Secure:</strong> (suggestions will appear here)
+            </div>
+          </div>
+          <div class="explain" id="explanation-section">
+            <strong>Explanation:</strong>
+            <p>Explanation will appear here in plain, student-friendly English.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ------------------------------
+    // XSS Injection module logic (ported & themed)
+    // ------------------------------
+    function initXSSModule() {
+      const languageSelect = document.getElementById("language-select");
+      const testCodeArea = document.getElementById("test-code");
+      const testBtn = document.getElementById("test-code-btn");
+      const clearBtn = document.getElementById("clear-btn");
+      const sampleBtn = document.getElementById("load-sample-btn");
+      const insecurePanel = document.getElementById("result-insecure");
+      const securePanel = document.getElementById("result-secure");
+      const explanationP = document.querySelector("#explanation-section p");
+      const statusPill = document.getElementById('statusPill');
+
+      // Samples
+      const samples = {
+        javascript: {
+          insecure:
+`// Insecure: assigning untrusted input to innerHTML
+const userInput = "<img src=x onerror=alert('xss')>";
+document.getElementById('out').innerHTML = userInput;`,
+          secure:
+`// Secure: use textContent OR sanitize before rendering
+const userInput = "<img src=x onerror=alert('xss')>";
+document.getElementById('out').textContent = userInput; // safe display`,
+          explanation: "Directly setting innerHTML with untrusted input executes scripts. Prefer textContent or a trusted sanitizer when HTML is required."
+        },
+        html: {
+          insecure:
+`<!-- Insecure: unescaped template variable -->
+<div>{{ userInput }}</div> <!-- if templating injects raw HTML/JS -->`,
+          secure:
+`<!-- Secure: enable auto-escaping / escape user input -->
+<div>{{ userInput }}</div> <!-- ensure the templating engine escapes by default -->`,
+          explanation: "Unescaped data in HTML can run scripts. Ensure server-side or template engines escape by default."
+        },
+        angular: {
+          insecure:
+`<!-- Insecure: binding unsanitized HTML -->
+<div [innerHTML]="userInput"></div>`,
+          secure:
+`<!-- Secure: sanitize first with DomSanitizer -->
+<div [innerHTML]="sanitizedUserInput"></div>`,
+          explanation: "Binding raw HTML can execute active content. Use Angular's DomSanitizer to whitelist safe HTML."
+        },
+        react: {
+          insecure:
+`// Insecure: dangerouslySetInnerHTML with untrusted input
+<div dangerouslySetInnerHTML={{ __html: userInput }} />`,
+          secure:
+`// Secure: sanitize before dangerouslySetInnerHTML
+const sanitized = sanitize(userInput);
+<div dangerouslySetInnerHTML={{ __html: sanitized }} />`,
+          explanation: "React warns by name: dangerouslySetInnerHTML. Only use with sanitization for untrusted content."
+        },
+        vue: {
+          insecure:
+`<!-- Insecure: v-html with untrusted input -->
+<div v-html="userInput"></div>`,
+          secure:
+`<!-- Secure: use interpolation or sanitize -->
+<div>{{ userInput }}</div>`,
+          explanation: "v-html renders raw HTML. Prefer text interpolation or sanitize untrusted values first."
+        }
+      };
+
+      // Indicators of risky XSS constructs
+      const regexIndicators = [
+        /<script[\s\S]*?>[\s\S]*?<\/script>/i,
+        /\bon\w+\s*=\s*["'][\s\S]*?["']/i,   // on*=
+        /javascript\s*:/i,                   // javascript: URLs
+        /document\.cookie/i,
+        /window\.location/i,
+        /eval\s*\(/i,
+        /innerHTML\s*=/i,
+        /dangerouslysetinnerhtml/i,
+        /\bv-html\b/i
+      ];
+
+      function clearAll() {
+        testCodeArea.value = "";
+        insecurePanel.innerHTML = '❌ <strong>Insecure:</strong> (results will appear here)';
+        securePanel.innerHTML = '✅ <strong>Secure:</strong> (suggestions will appear here)';
+        explanationP.textContent = "Explanation will appear here in plain, student-friendly English.";
+        statusPill.textContent = "Ready";
+      }
+
+      function loadSample(lang) {
+        const s = samples[lang];
+        insecurePanel.innerHTML = `❌ <strong>Insecure:</strong><pre>${escapeHtml(s ? s.insecure : "N/A")}</pre>`;
+        securePanel.innerHTML = `✅ <strong>Secure:</strong><pre>${escapeHtml(s ? s.secure : "N/A")}</pre>`;
+        explanationP.textContent = s ? s.explanation : "N/A";
+        testCodeArea.value = s ? s.insecure : "";
+        statusPill.textContent = "Sample loaded";
+      }
+
+      function testCode(code, lang) {
+        if (!code.trim()) {
+          clearAll();
+          return;
+        }
+        statusPill.textContent = "Analyzing…";
+
+        const found = regexIndicators.some((re) => re.test(code));
+        const s = samples[lang];
+
+        if (found) {
+          insecurePanel.innerHTML = `❌ <strong>Insecure:</strong><pre>${escapeHtml(s ? s.insecure : "Potential XSS pattern detected (e.g., innerHTML, <script>, on* handlers).")}</pre>`;
+          securePanel.innerHTML = `✅ <strong>Secure:</strong><pre>${escapeHtml(s ? s.secure : "Prefer textContent or sanitize before rendering.")}</pre>`;
+          explanationP.textContent = s
+            ? s.explanation + " Always escape or sanitize untrusted content before rendering."
+            : "Detected constructs commonly abused for XSS. Use escaping or a sanitizer and avoid injecting raw HTML.";
+          statusPill.textContent = "Review issues";
+          return;
+        }
+
+        // No obvious risky primitives found
+        insecurePanel.textContent = "(No obvious XSS patterns found)";
+        securePanel.innerHTML = `✅ <strong>Secure:</strong><pre>${escapeHtml(s ? s.secure : "Prefer safe rendering methods (e.g., textContent) or sanitize inputs.")}</pre>`;
+        explanationP.textContent = "The snippet doesn’t contain common XSS primitives. Keep using safe rendering patterns and avoid raw HTML injection.";
+        statusPill.textContent = "Looks good";
+      }
+
+      function escapeHtml(s){
+        return String(s)
+          .replaceAll("&","&amp;")
+          .replaceAll("<","&lt;")
+          .replaceAll(">","&gt;");
+      }
+
+      // Wire events
+      testBtn.onclick = () => testCode(testCodeArea.value, languageSelect.value);
+      clearBtn.onclick = () => clearAll();
+      sampleBtn.onclick = () => loadSample(languageSelect.value);
+      languageSelect.onchange = () => clearAll();
+
+      // Init
+      clearAll();
+    }
+
+    window.addEventListener('DOMContentLoaded', initXSSModule);
+  </script>
+<a href="/dashboard" class="dash-btn">← Dashboard</a>
+</body>
+</html>

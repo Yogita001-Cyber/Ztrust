@@ -1,0 +1,10 @@
+Flask==3.0.0
+Flask-SQLAlchemy==3.1.1
+Flask-Bcrypt==1.0.1
+Flask-Session==0.8.0
+cryptography==41.0.7
+requests==2.31.0
+python-dotenv==1.0.0
+brevo-python==1.2.0
+pyotp==2.9.0
+idna==2.10
