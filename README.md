@@ -67,7 +67,7 @@ The goal of ZTrust is to overcome limitations of traditional systems such as:
 
 ### 📊 System Flowchart
 
-![Flowchart](images/flowchart.png)
+![Flowchart](https://github.com/Yogita001-Cyber/Ztrust/blob/fb76c335e19dd1cab22e3bd7c98d1c642c6848c4/flowchart.png)
 
 ## 🔒 Security Implementation
 
